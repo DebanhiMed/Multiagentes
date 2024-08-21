@@ -5,7 +5,7 @@ from mesa.space import SingleGrid
 from mesa.time import SimultaneousActivation
 from mesa.datacollection import DataCollector
 
-class Box(Agent):
+class Shelf(Agent):
     def __init__(self, unique_id, model):
         super().__init__(unique_id, model)
 
@@ -106,15 +106,16 @@ class Environment(Model):
         self.mode_start_pos = mode_start_pos
 
         self.desc = [
-            'BBBBBBBBBBBBBBBBB',
-            'BFFFFFFFFFFFFFFFB',
-            'BFFFFFFFFBBBFFFFB',
-            'BFFFFFFFFBBBFFFFB',
-            'BFFFFFFFFBBBBBBFB',
-            'BFFFFFFFFFFFFFFFB',
-            'BFFFFGFFFFFFFFFFB',
-            'BFFFFFFFFFFFFFFFB',
-            'BBBBBBBBBBBBBBBBB'
+            'FFFFFFFFFFFFFFFFFF',
+            'FFFFFFFFFFFFFFFFFF',
+            'FFFFFFFFFFFFFFFFFF',
+            'FFFFFFFFFBBBFFFFFF',
+            'FFFFFFFFFBBBFFFFFF',
+            'FFFFFFFFFBBBBBBFFF',
+            'FFFFFFFFFFFFFFFFFF',
+            'FFFFFFFFFFFFFFFFFF',
+            'FFFFFFFFFFFFFFFFFF',
+            'FFFFFFFFFFFFFFFFFF'
         ]
         
         self._manual_placement(self.desc)
@@ -138,8 +139,8 @@ class Environment(Model):
         obstacle_positions = self.random.sample(available_positions, k=num_obstacles)
 
         for id, pos in enumerate(obstacle_positions):
-            box = Box(int(f"{num_obstacles}0{id}") + 1, self)
-            self.grid.place_agent(box, pos)
+            shelf = Shelf(int(f"{num_obstacles}0{id}") + 1, self)
+            self.grid.place_agent(shelf, pos)
             available_positions.remove(pos)
 
         # Posicionamiento de agentes robot
@@ -163,8 +164,8 @@ class Environment(Model):
                 pos = (j, i)
                 if 0 <= pos[0] < self.grid.width and 0 <= pos[1] < self.grid.height:
                     if cell == 'B':  # Obstacle
-                        box = Box(self.next_id(), self)
-                        self.grid.place_agent(box, pos)
+                        shelf = Shelf(self.next_id(), self)
+                        self.grid.place_agent(shelf, pos)
                         if pos in available_positions:
                             available_positions.remove(pos)
                     elif cell == 'G':  # Goal

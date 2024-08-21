@@ -1,5 +1,5 @@
 import mesa
-from model import Environment, Bot, Box, Goal
+from model import Environment, Bot, Shelf, Goal
 
 MAX_NUMBER_ROBOTS = 20
 MAX_NUMBER_GOALS = 50  # Set a maximum for the number of goals
@@ -8,12 +8,12 @@ def agent_portrayal(agent):
     if isinstance(agent, Bot):
         return {"Shape": "circle", "Filled": "false", "Color": "Cyan", "Layer": 1, "r": 0.9,
                 "text": f"{agent.battery}", "text_color": "black"}
-    elif isinstance(agent, Box):
+    elif isinstance(agent, Shelf):
         return {"Shape": "rect", "Filled": "true", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
                 "Color": "#ccbeaf", "text": "🫦"}
     elif isinstance(agent, Goal):
         return {"Shape": "rect", "Filled": "false", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
-                "Color": "#ccbeaf", "text": "🚨"}
+                "Color": "#ccbeaf", "text": "🎁"}
     else:
         return {"Shape": "rect", "Filled": "true", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
                 "Color": "white", "text": ""}
