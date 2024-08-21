@@ -112,7 +112,7 @@ class Environment(Model):
             'BFFFFFFFFBBBFFFFB',
             'BFFFFFFFFBBBBBBFB',
             'BFFFFFFFFFFFFFFFB',
-            'BFFFFFFFFFFFFFFFB',
+            'BFFFFGFFFFFFFFFFB',
             'BFFFFFFFFFFFFFFFB',
             'BBBBBBBBBBBBBBBBB'
         ]

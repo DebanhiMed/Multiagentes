@@ -10,16 +10,16 @@ def agent_portrayal(agent):
                 "text": f"{agent.battery}", "text_color": "black"}
     elif isinstance(agent, Box):
         return {"Shape": "rect", "Filled": "true", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
-                "Color": "#ccbeaf", "text": "🧱"}
+                "Color": "#ccbeaf", "text": "🫦"}
     elif isinstance(agent, Goal):
         return {"Shape": "rect", "Filled": "false", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
-                "Color": "#ccbeaf", "text": "🚩"}
+                "Color": "#ccbeaf", "text": "🚨"}
     else:
         return {"Shape": "rect", "Filled": "true", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
                 "Color": "white", "text": ""}
 
 grid = mesa.visualization.CanvasGrid(
-    agent_portrayal, 17, 9, 400, 400)
+    agent_portrayal, 17, 9, 400, 300)
 
 # Create a chart to track the battery of the robots
 chart_charges = mesa.visualization.ChartModule(
