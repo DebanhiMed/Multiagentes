@@ -2,7 +2,7 @@ import mesa
 from model import Environment, Bot, Shelf, Goal
 
 MAX_NUMBER_ROBOTS = 20
-MAX_NUMBER_GOALS = 50  # Set a maximum for the number of goals
+MAX_NUMBER_GOALS = 50  # Set a maximum for the number of goal
 
 def agent_portrayal(agent):
     if isinstance(agent, Bot):
