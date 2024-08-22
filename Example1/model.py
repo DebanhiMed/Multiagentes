@@ -9,6 +9,10 @@ class Shelf(Agent):
     def __init__(self, unique_id, model):
         super().__init__(unique_id, model)
 
+class Wall(Agent):
+    def __init__(self, unique_id, model):
+        super().__init__(unique_id, model)
+
 class Goal(Agent):
     def __init__(self, unique_id, model):
         super().__init__(unique_id, model)
@@ -27,7 +31,6 @@ class Bot(Agent):
         if self.battery > 0 and self.path:
             self.next_pos = self.path.pop(0)
             if self.next_pos == self.goal.pos:
-                # Remove the goal before moving the robot into the goal's position
                 if self.goal in self.model.schedule._agents:
                     self.model.grid.remove_agent(self.goal)
                     self.model.schedule.remove(self.goal)
@@ -106,12 +109,12 @@ class Environment(Model):
         self.mode_start_pos = mode_start_pos
 
         self.desc = [
+            'BFFFBBFFFFFFFFFFFF',
+            'BFFFBBFFFFFFFFFFFF',
+            'BFFFBBFFFFFFFFFFFF',
+            'BFFFBBFFFFFFFFFFFF',
             'FFFFFFFFFFFFFFFFFF',
-            'FFFFFFFFFFFFFFFFFF',
-            'FFFFFFFFFFFFFFFFFF',
-            'FFFFFFFFFBBBFFFFFF',
-            'FFFFFFFFFBBBFFFFFF',
-            'FFFFFFFFFBBBBBBFFF',
+            'WFFFFFFFFFFFFFFFFF',
             'FFFFFFFFFFFFFFFFFF',
             'FFFFFFFFFFFFFFFFFF',
             'FFFFFFFFFFFFFFFFFF',
@@ -166,6 +169,11 @@ class Environment(Model):
                     if cell == 'B':  # Obstacle
                         shelf = Shelf(self.next_id(), self)
                         self.grid.place_agent(shelf, pos)
+                        if pos in available_positions:
+                            available_positions.remove(pos)
+                    elif cell == 'W':  # Obstacle
+                        wall = Wall(self.next_id(), self)
+                        self.grid.place_agent(wall, pos)
                         if pos in available_positions:
                             available_positions.remove(pos)
                     elif cell == 'G':  # Goal

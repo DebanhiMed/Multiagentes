@@ -1,5 +1,5 @@
 import mesa
-from model import Environment, Bot, Shelf, Goal
+from model import Environment, Bot, Shelf, Goal, Wall
 
 MAX_NUMBER_ROBOTS = 20
 MAX_NUMBER_GOALS = 50  # Set a maximum for the number of goal
@@ -11,6 +11,9 @@ def agent_portrayal(agent):
     elif isinstance(agent, Shelf):
         return {"Shape": "rect", "Filled": "true", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
                 "Color": "#ccbeaf", "text": "🫦"}
+    elif isinstance(agent, Wall):
+        return {"Shape": "rect", "Filled": "true", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
+                "Color": "#ccbeaf", "text": "█"}
     elif isinstance(agent, Goal):
         return {"Shape": "rect", "Filled": "false", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
                 "Color": "#ccbeaf", "text": "🎁"}
@@ -19,7 +22,7 @@ def agent_portrayal(agent):
                 "Color": "white", "text": ""}
 
 grid = mesa.visualization.CanvasGrid(
-    agent_portrayal, 17, 9, 400, 300)
+    agent_portrayal, 19, 11, 400, 300)
 
 # Create a chart to track the battery of the robots
 chart_charges = mesa.visualization.ChartModule(
@@ -62,8 +65,8 @@ model_params = {
         ["Fixed", "Random"],
         "Choose whether to place the robots in a fixed position or randomly",
     ),
-    "M": 17,
-    "N": 9,
+    "M": 19,
+    "N": 11,
 }
 
 server = mesa.visualization.ModularServer(
