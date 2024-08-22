@@ -37,8 +37,8 @@ chart_charges = mesa.visualization.ChartModule(
 model_params = {
     "num_agents": mesa.visualization.Slider(
         "Number of Robots",
-        5,
-        2,
+        1,
+        1,
         MAX_NUMBER_ROBOTS,
         1,
         description="Choose how many robots to include in the model",

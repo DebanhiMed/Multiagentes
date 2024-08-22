@@ -6,19 +6,23 @@ from mesa.time import SimultaneousActivation
 from mesa.datacollection import DataCollector
 
 class Shelf(Agent):
-    def __init__(self, unique_id, model):
+    def __init__(self, unique_id, model, capacity=3):
         super().__init__(unique_id, model)
+        self.capacity = capacity
+
 
 class Wall(Agent):
     def __init__(self, unique_id, model):
         super().__init__(unique_id, model)
 
+
 class Goal(Agent):
     def __init__(self, unique_id, model):
         super().__init__(unique_id, model)
 
+
 class Bot(Agent):
-    def __init__(self, unique_id, model, goal=None):
+    def __init__(self, unique_id, model, goal=None, target_shelf=None):
         super().__init__(unique_id, model)
         self.next_pos = None
         self.luck = np.random.uniform(0.2, 1.0)
@@ -26,33 +30,68 @@ class Bot(Agent):
         self.battery = 100
         self.path = []
         self.goal = goal
+        self.carrying = False  # To track if the bot is carrying a goal
+        self.target_shelf = target_shelf  # Specific shelf to move to after picking up a goal
 
     def step(self):
-        if self.battery > 0 and self.path:
-            self.next_pos = self.path.pop(0)
-            if self.next_pos == self.goal.pos:
-                if self.goal in self.model.schedule._agents:
-                    self.model.grid.remove_agent(self.goal)
-                    self.model.schedule.remove(self.goal)
-                self.goal = None  # Robot no longer has a goal
-            self.movements += 1
-            self.battery -= 1
-            self.model.grid.move_agent(self, self.next_pos)
+        if self.battery > 0:
+            if self.carrying:
+                # Bot is carrying a goal, move to the specific shelf
+                if not self.target_shelf:
+                    self.target_shelf = self.find_closest_shelf()  # Find the closest shelf if not set
 
-        elif self.battery > 0 and self.goal:
-            self.path = self.a_star(self.pos, self.goal.pos)
-            if self.path:
-                self.next_pos = self.path.pop(0)
-                if self.next_pos == self.goal.pos:
-                    # Remove the goal before moving the robot into the goal's position
-                    if self.goal in self.model.schedule._agents:
-                        self.model.grid.remove_agent(self.goal)
-                        self.model.schedule.remove(self.goal)
-                    self.goal = None  # Robot no longer has a goal
-                self.movements += 1
-                self.battery -= 1
-                self.model.grid.move_agent(self, self.next_pos)
+                if self.target_shelf:
+                    self.path = self.a_star(self.pos, self.target_shelf.pos)
+                    if self.path:
+                        self.next_pos = self.path.pop(0)
+                        self.movements += 1
+                        self.battery -= 1
+                        self.model.grid.move_agent(self, self.next_pos)
+                        if self.next_pos == self.target_shelf.pos:
+                            # Place the goal on the shelf
+                            if self.target_shelf.capacity > 0:
+                                self.target_shelf.capacity -= 1
+                                self.carrying = False  # Goal is placed
+                                self.goal = None
+                                self.target_shelf = None  # Clear the target shelf
+                                print(f"Bot {self.unique_id} has placed the goal on the specific shelf.")
+            else:
+                # Bot is not carrying a goal, move to the closest goal
+                if not self.goal:
+                    self.goal = self.find_closest_goal()
+                if self.goal:
+                    self.path = self.a_star(self.pos, self.goal.pos)
+                    if self.path:
+                        self.next_pos = self.path.pop(0)
 
+                        # Check if the next position is the goal's position
+                        if self.next_pos == self.goal.pos:
+                            # Remove the goal (pick it up) and free the space
+                            if not self.model.grid.is_cell_empty(self.next_pos):
+                                self.model.grid.remove_agent(self.goal)
+                                self.carrying = True
+                                self.target_shelf = self.find_closest_shelf()  # Set the closest shelf as the target
+                                self.goal = None
+                                print(f"Bot {self.unique_id} has picked up the goal.")
+
+                        # Move to the next position after removing the goal
+                        self.movements += 1
+                        self.battery -= 1
+                        self.model.grid.move_agent(self, self.next_pos)
+
+    def find_closest_goal(self):
+        goals = [a for a in self.model.schedule.agents if isinstance(a, Goal)]
+        if not goals:
+            return None
+        closest_goal = min(goals, key=lambda g: self.manhattan_heuristic(self.pos, g.pos))
+        return closest_goal
+
+    def find_closest_shelf(self):
+        shelves = [a for a in self.model.schedule.agents if isinstance(a, Shelf) and a.capacity > 0]
+        if not shelves:
+            return None
+        closest_shelf = min(shelves, key=lambda s: self.manhattan_heuristic(self.pos, s.pos))
+        return closest_shelf
 
     def manhattan_heuristic(self, pos, goal):
         return abs(pos[0] - goal[0]) + abs(pos[1] - goal[1])
@@ -109,16 +148,17 @@ class Environment(Model):
         self.mode_start_pos = mode_start_pos
 
         self.desc = [
-            'BFFFBBFFFFFFFFFFFF',
-            'BFFFBBFFFFFFFFFFFF',
-            'BFFFBBFFFFFFFFFFFF',
-            'BFFFBBFFFFFFFFFFFF',
-            'FFFFFFFFFFFFFFFFFF',
-            'WFFFFFFFFFFFFFFFFF',
-            'FFFFFFFFFFFFFFFFFF',
-            'FFFFFFFFFFFFFFFFFF',
-            'FFFFFFFFFFFFFFFFFF',
-            'FFFFFFFFFFFFFFFFFF'
+            'WWWWWWWWWWWWWWWWWWW',
+            'WFFFFFFFFFFFFFFFFFW',
+            'WFFFFFFFFBFFFFFFFRW',
+            'WFFFFFFFFFFFFFFFFFW',
+            'WFFRFFFFFFFFFFFGFFW',
+            'WFFFFFFFFFFFFFFFFFW',
+            'WFFFFFFGFFFFFFFFFFW',
+            'WFFFFFFFFFFFFFFFFFW',
+            'WFFFFFFFFFFFFFFFFFW',
+            'WFFFFFFFFFFFFGFFFFW',
+            'WWWWWWWWWWWWWWWWWWW',
         ]
         
         self._manual_placement(self.desc)
@@ -160,6 +200,7 @@ class Environment(Model):
 
     def _manual_placement(self, desc):
         goals = []
+        bots = []  # To store bot positions
         available_positions = [pos for _, pos in self.grid.coord_iter()]
 
         for i, row in enumerate(desc):
@@ -167,34 +208,31 @@ class Environment(Model):
                 pos = (j, i)
                 if 0 <= pos[0] < self.grid.width and 0 <= pos[1] < self.grid.height:
                     if cell == 'B':  # Obstacle
-                        shelf = Shelf(self.next_id(), self)
+                        shelf = Shelf(self.next_id(), self, capacity=3)
                         self.grid.place_agent(shelf, pos)
-                        if pos in available_positions:
-                            available_positions.remove(pos)
-                    elif cell == 'W':  # Obstacle
+                        available_positions.remove(pos)
+                    elif cell == 'W':  # Wall
                         wall = Wall(self.next_id(), self)
                         self.grid.place_agent(wall, pos)
-                        if pos in available_positions:
-                            available_positions.remove(pos)
+                        available_positions.remove(pos)
                     elif cell == 'G':  # Goal
                         goal = Goal(self.next_id(), self)
                         self.grid.place_agent(goal, pos)
                         goals.append(goal)
+                        available_positions.remove(pos)
+                    elif cell == 'R':  # Bot fixed position
+                        bots.append(pos)
                         if pos in available_positions:
                             available_positions.remove(pos)
 
-        # Place bots
-        if goals:  # Check if there are any goals
-            for _ in range(self.num_agents):
-                if not available_positions:
-                    break  # Stop if no positions left
-
-                pos = self.random.choice(available_positions)
-                closest_goal = min(goals, key=lambda g: abs(g.pos[0] - pos[0]) + abs(g.pos[1] - pos[1]))
-                bot = Bot(self.next_id(), self, closest_goal)
-                self.grid.place_agent(bot, pos)
-                self.schedule.add(bot)
+        for pos in bots:
+            closest_goal = min(goals, key=lambda g: abs(g.pos[0] - pos[0]) + abs(g.pos[1] - pos[1]))
+            bot = Bot(self.next_id(), self, closest_goal)
+            self.grid.place_agent(bot, pos)
+            self.schedule.add(bot)
+            if pos in available_positions:
                 available_positions.remove(pos)
+
 
     def add_goals(self, num_new_goals):
         available_positions = [pos for _, pos in self.grid.coord_iter() if self.grid.get_agent_count(pos) == 0]
