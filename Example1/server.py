@@ -1,5 +1,5 @@
 import mesa
-from model import Environment, Bot, Shelf, Goal, Wall
+from model import Environment, Bot, Shelf, Goal, Wall, Charger, SPackage, EPackage
 
 MAX_NUMBER_ROBOTS = 20
 MAX_NUMBER_GOALS = 50  # Set a maximum for the number of goal
@@ -13,10 +13,19 @@ def agent_portrayal(agent):
                 "Color": "#ccbeaf", "text": "🫦"}
     elif isinstance(agent, Wall):
         return {"Shape": "rect", "Filled": "true", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
-                "Color": "#ccbeaf", "text": "█"}
+                "Color": "#000000", "text": ""}
     elif isinstance(agent, Goal):
         return {"Shape": "rect", "Filled": "false", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
                 "Color": "#ccbeaf", "text": "🎁"}
+    elif isinstance(agent, Charger):
+        return {"Shape": "rect", "Filled": "false", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
+                "Color": "#ccbeaf", "text": "🪫"}
+    elif isinstance(agent, EPackage):
+        return {"Shape": "rect", "Filled": "true", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
+                "Color": "#ccbeaf", "text": "📦"}
+    elif isinstance(agent, SPackage):
+        return {"Shape": "rect", "Filled": "true", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
+                "Color": "#ccbeaf", "text": "🚚"}
     else:
         return {"Shape": "rect", "Filled": "true", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
                 "Color": "white", "text": ""}
