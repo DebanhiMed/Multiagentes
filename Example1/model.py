@@ -17,7 +17,7 @@ class Shelf(Agent):
         if self.capacity > 0:
             self.capacity -= 1
 
-class CentralSystem(Agent):
+class TaskManager(Agent):
     def __init__(self, unique_id, model):
         super().__init__(unique_id, model)
         self.tasks = []  # Lista de tareas pendientes
@@ -78,10 +78,10 @@ class Bot(Agent):
 
     def manhattan_heuristic(self, pos, goal):
         return abs(pos[0] - goal[0]) + abs(pos[1] - goal[1])
-    
+
     def at_box(self):
         return False
-    
+
     def at_exit(self):
         return True
 
@@ -132,12 +132,30 @@ class Bot(Agent):
 
         return []
 
+    def detect_collision(self, next_pos):
+        for agent in self.model.grid.get_neighbors(self.pos, moore=False, include_center=False, radius=1):
+            if isinstance(agent, Bot) and agent.next_pos == next_pos:
+                return True
+        return False
+
+    def avoid_collision(self):
+        for neighbor in self.model.grid.iter_neighborhood(self.pos, moore=False, include_center=False):
+            if self.model.grid.is_cell_empty(neighbor):
+                return neighbor
+        return self.pos
+
     def step(self):
         if self.battery > 0 and self.path and self.goal:
             self.next_pos = self.path.pop(0)
+
+            if self.detect_collision(self.next_pos):
+                self.next_pos = self.avoid_collision()
+                if self.next_pos == self.pos:
+                    return
+
             self.movements += 1
             self.battery -= 1
-            if self.carry == False:
+            if not self.carry:
                 box_in_next_pos = [agent for agent in self.model.grid.get_cell_list_contents([self.next_pos]) if isinstance(agent, Goal)]
                 if box_in_next_pos:
                     goal = box_in_next_pos[0]
@@ -146,22 +164,24 @@ class Bot(Agent):
                     self.goal = self.find_exit()
                     self.path = self.a_star(self.pos, self.goal)
 
-                self.model.grid.move_agent(self, self.next_pos)
-
-            if self.carry == True:
+            if self.carry:
                 exit_in_next_pos = [agent for agent in self.model.grid.get_cell_list_contents([self.next_pos]) if isinstance(agent, SPackage)]
                 if exit_in_next_pos:
+                    # Interact with the SPackage without removing it
+                    # Example interaction: stop moving and "drop off" the carried item
                     self.carry = False
-                    self.goal = self.tasks.pop()[0]
-                    self.path = self.a_star(self.pos, self.goal)
-                    if self.path:
-                        self.next_pos = self.path.pop(0)
-                        self.model.grid.move_agent(self, self.next_pos)
-                        self.movements += 1
-                        self.battery -= 1
-
+                    if self.tasks:
+                        self.goal = self.tasks.pop()[0]
+                        self.path = self.a_star(self.pos, self.goal)
+                        if self.path:
+                            self.next_pos = self.path.pop(0)
+                            self.model.grid.move_agent(self, self.next_pos)
+                            self.movements += 1
+                            self.battery -= 1
                 else:
                     self.model.grid.move_agent(self, self.next_pos)
+            else:
+                self.model.grid.move_agent(self, self.next_pos)
 
         elif self.battery > 0 and self.goal is None and not self.path:
             self.goal = self.tasks.pop()[0]
@@ -183,14 +203,14 @@ class Environment(Model):
         self.mode_start_pos = mode_start_pos
         self.special_cell = []
 
-        self.central_system = CentralSystem(0, self)
+        self.central_system = TaskManager(0, self)
         self.schedule.add(self.central_system)
 
         self.desc = [
             'WWWWWWWWWWWWWWWWWWW',
             'WDDDFFFFFFFFFFFEEEW',
             'WFFFRFFFFFFFFFFFFFW',
-            'WFFFFFFFFFFFFFFFFFW',
+            'WFFFFFFFFFRFFFFFFFW',
             'WFFSSFFFSSFFFSSFFFW',
             'WFFSSFFFSSFFFSSFFFW',
             'WFFFFFFFFFFFFFFFFFW',
