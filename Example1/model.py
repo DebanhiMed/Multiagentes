@@ -1,4 +1,6 @@
 import numpy as np
+import random
+import time
 from mesa.model import Model
 from mesa.agent import Agent
 from mesa.space import SingleGrid
@@ -22,7 +24,7 @@ class TaskManager(Agent):
         super().__init__(unique_id, model)
         self.tasks = []  # Lista de tareas pendientes
         self.robot_statuses = {}
-        self.battery = 34;
+        self.battery = 100;
 
     def step(self):
         # Asignar tareas a los robots libres
@@ -42,6 +44,19 @@ class TaskManager(Agent):
 class EPackage(Agent):
     def __init__(self, unique_id, model):
         super().__init__(unique_id, model)
+        self.next_goal_time = self.model.schedule.time + random.uniform(2, 5)
+
+    def step(self):
+        current_time = self.model.schedule.time
+        if current_time >= self.next_goal_time:
+            # Place a Goal at this EPackage's position
+            goal = Goal(self.model.next_id(), self.model)
+            self.model.grid.place_agent(goal, self.pos)
+            self.model.schedule.add(goal)
+            
+            # Set the next time a goal will appear
+            self.next_goal_time = current_time + random.uniform(2, 5)
+
 
 class SPackage(Agent):
     def __init__(self, unique_id, model):
@@ -76,8 +91,8 @@ class Bot(Agent):
     def getTasks(self, task):
         self.tasks.append(task)
 
-    def manhattan_heuristic(self, pos, goal):
-        return abs(pos[0] - goal[0]) + abs(pos[1] - goal[1])
+    def euclidean_heuristic(self, pos, goal):
+        return np.sqrt((pos[0] - goal[0])**2 + (pos[1] - goal[1])**2)
 
     def at_box(self):
         return False
@@ -97,7 +112,7 @@ class Bot(Agent):
         open_list = []
         closed_list = set()
 
-        open_list.append((0 + self.manhattan_heuristic(start, goal), 0, start, None))
+        open_list.append((0 + self.euclidean_heuristic(start, goal), 0, start, None))
 
         while open_list:
             open_list.sort(key=lambda x: x[0])
@@ -117,7 +132,7 @@ class Bot(Agent):
             for neighbor in self.model.grid.iter_neighborhood(current, moore=False, include_center=False):
                 if self.model.grid.is_cell_empty(neighbor) or neighbor == goal:
                     g_new = g + 1
-                    h_new = self.manhattan_heuristic(neighbor, goal)
+                    h_new = self.euclidean_heuristic(neighbor, goal)
                     f_new = g_new + h_new
 
                     if any(neighbor == c for f, g, c, p in closed_list):
@@ -207,18 +222,30 @@ class Environment(Model):
         self.schedule.add(self.central_system)
 
         self.desc = [
-            'WWWWWWWWWWWWWWWWWWW',
-            'WDDDFFFFFFFFFFFEEEW',
-            'WFFFRFFFFFFFFFFFFFW',
-            'WFFFFFFFFFRFFFFFFFW',
-            'WFFSSFFFSSFFFSSFFFW',
-            'WFFSSFFFSSFFFSSFFFW',
-            'WFFFFFFFFFFFFFFFFFW',
-            'WCFFFFFFFFFFFFFFFFW',
-            'WFFFFFFFFFGGGGFFFFW',
-            'WCFFFFFFDFFFFFFFFFW',
-            'WWWWWWWWWWWWWWWWWWW',
-        ]
+        'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
+        'WDDDFFFFFFFFFFFFFFFFFFFFFFFFFFFFEEEFFW',
+        'WFFFRFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'WFFFFFFFFFRFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'WFFSSFFFSSFFFSSFFFSSFFFSSFFFSSFFFSSFFW',
+        'WFFSSFFFSSFFFSSFFFSSFFFSSFFFSSFFFSSFFW',
+        'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'WCFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'WFFFFFFFFFFFFFFFFGGGGFFFFFFFFFFFFFFFFW',
+        'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'WCFFFFFFDFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'WCFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
+    ]
+
         
         self._manual_placement(self.desc)
 
@@ -233,41 +260,43 @@ class Environment(Model):
     def _manual_placement(self, desc):
         goalPos = (0, 0)
         box_position = []
-        bots = []
-        available_positions = [pos for _, pos in self.grid.coord_iter()]
 
-        M, N = self.grid.height, self.grid.width
+        N = self.grid.height  # Rows
+        M = self.grid.width  # Columns
 
         for pos in self.grid.coord_iter():
             _, (x, y) = pos
-            if desc[M - y - 1][x] == 'S':  
-                shelf = Shelf(self.next_id(), self, capacity=3)
-                self.grid.place_agent(shelf, (x, y))
-            elif desc[M - y - 1][x] == 'W':  
-                wall = Wall(self.next_id(), self)
-                self.grid.place_agent(wall, (x, y))
-            elif desc[M - y - 1][x] == 'G':  
-                goal = (x, y)
-                goall = Goal(self.next_id(), self)
-                self.special_cell.append(goal)
-                box_position.append((x, y))
-                self.grid.place_agent(goall, (x, y))
-            elif desc[M - y - 1][x] == 'C':  
-                charger = Charger(self.next_id(), self)
-                self.grid.place_agent(charger, (x, y))
-            elif desc[M - y - 1][x] == 'E':  
-                entrada = EPackage(self.next_id(), self)
-                self.grid.place_agent(entrada, (x, y))
-            elif desc[M - y - 1][x] == 'D':  
-                salida = SPackage(self.next_id(), self)
-                self.grid.place_agent(salida, (x, y))
-            elif desc[M - y - 1][x] == 'R':  
-                bot = Bot(self.next_id(), self)
-                self.grid.place_agent(bot, (x, y))
-                self.schedule.add(bot)
+            # Ensure y is within bounds of desc
+            if y < len(desc) and x < len(desc[y]):
+                if desc[y][x] == 'S':  
+                    shelf = Shelf(self.next_id(), self, capacity=3)
+                    self.grid.place_agent(shelf, (x, y))
+                elif desc[y][x] == 'W':  
+                    wall = Wall(self.next_id(), self)
+                    self.grid.place_agent(wall, (x, y))
+                elif desc[y][x] == 'G':  
+                    goal = (x, y)
+                    goall = Goal(self.next_id(), self)
+                    self.special_cell.append(goal)
+                    box_position.append((x, y))
+                    self.grid.place_agent(goall, (x, y))
+                elif desc[y][x] == 'C':  
+                    charger = Charger(self.next_id(), self)
+                    self.grid.place_agent(charger, (x, y))
+                elif desc[y][x] == 'E':  
+                    entrada = EPackage(self.next_id(), self)
+                    self.grid.place_agent(entrada, (x, y))
+                elif desc[y][x] == 'D':  
+                    salida = SPackage(self.next_id(), self)
+                    self.grid.place_agent(salida, (x, y))
+                elif desc[y][x] == 'R':  
+                    bot = Bot(self.next_id(), self)
+                    self.grid.place_agent(bot, (x, y))
+                    self.schedule.add(bot)
 
         for box_pos in box_position:
             self.central_system.add_task((box_pos, goalPos))
+
 
     def step(self):
         self.datacollector.collect(self)

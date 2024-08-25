@@ -1,9 +1,6 @@
 import mesa
 from model import Environment, Bot, Shelf, Goal, Wall, Charger, SPackage, EPackage
 
-MAX_NUMBER_ROBOTS = 20
-MAX_NUMBER_GOALS = 50  # Set a maximum for the number of goal
-
 def agent_portrayal(agent):
     if isinstance(agent, Bot):
         return {"Shape": "circle", "Filled": "false", "Color": "Cyan", "Layer": 1, "r": 0.9,
@@ -31,7 +28,7 @@ def agent_portrayal(agent):
                 "Color": "white", "text": ""}
 
 grid = mesa.visualization.CanvasGrid(
-    agent_portrayal, 19, 11, 400, 300)
+    agent_portrayal, 38, 22, 600, 400)
 
 # Create a chart to track the battery of the robots
 chart_charges = mesa.visualization.ChartModule(
@@ -44,8 +41,8 @@ chart_charges = mesa.visualization.ChartModule(
 )
 
 model_params = {
-    "M": 19,
-    "N": 11,
+    "M": 38,
+    "N": 22,
 }
 
 server = mesa.visualization.ModularServer(
