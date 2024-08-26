@@ -7,6 +7,19 @@ from mesa.space import SingleGrid
 from mesa.time import SimultaneousActivation
 from mesa.datacollection import DataCollector
 
+
+"""
+    TO DO: 
+     - Hacer que los robots se rodeen si van a colisionar (no intercambiar posiciones)
+     - Hacer que el EPackage entregue paquetes
+     - Agregar ids a los paquetes
+     - Ordenar paquetes en sus respectivos estantes
+     - Hacer que los robots se carguen cuando tengan poca bateria
+     - Hacer que los cargadores funcionen
+     - Hacer que la mitad de los robots sean de entrega y otros de acomodado
+"""
+
+
 class Shelf(Agent):
     def __init__(self, unique_id, model, capacity=3):
         super().__init__(unique_id, model)
