@@ -32,12 +32,13 @@ class Shelf(Agent):
         if self.capacity > 0:
             self.capacity -= 1
 
+
 class TaskManager(Agent):
     def __init__(self, unique_id, model):
         super().__init__(unique_id, model)
         self.tasks = []  # Lista de tareas pendientes
         self.robot_statuses = {}
-        self.battery = 100;
+        self.battery = 100
 
     def step(self):
         # Asignar tareas a los robots libres
@@ -46,7 +47,7 @@ class TaskManager(Agent):
                 if self.tasks:
                     task = self.tasks.pop(0)
                     bot.getTasks(task)
-                    # self.robot_statuses[bot.unique_id] = "Busy"
+
 
     def add_task(self, task):
         self.tasks.append(task)
@@ -54,30 +55,21 @@ class TaskManager(Agent):
     def report_completion(self, robot_id):
         self.robot_statuses[robot_id] = "Free"
 
+
 class EPackage(Agent):
     def __init__(self, unique_id, model):
         super().__init__(unique_id, model)
-        self.next_goal_time = self.model.schedule.time + random.uniform(2, 5)
-
-    def step(self):
-        current_time = self.model.schedule.time
-        if current_time >= self.next_goal_time:
-            # Place a Goal at this EPackage's position
-            goal = Goal(self.model.next_id(), self.model)
-            self.model.grid.place_agent(goal, self.pos)
-            self.model.schedule.add(goal)
-            
-            # Set the next time a goal will appear
-            self.next_goal_time = current_time + random.uniform(2, 5)
 
 
 class SPackage(Agent):
     def __init__(self, unique_id, model):
         super().__init__(unique_id, model)
 
+
 class Charger(Agent):
     def __init__(self, unique_id, model):
         super().__init__(unique_id, model)
+
 
 class Wall(Agent):
     def __init__(self, unique_id, model):
@@ -100,18 +92,13 @@ class Bot(Agent):
         self.carry = False
         self.tasks = []
         self.goal = None
+        self.charging = False
 
     def getTasks(self, task):
         self.tasks.append(task)
 
     def euclidean_heuristic(self, pos, goal):
         return np.sqrt((pos[0] - goal[0])**2 + (pos[1] - goal[1])**2)
-
-    def at_box(self):
-        return False
-
-    def at_exit(self):
-        return True
 
     def find_exit(self):
         for pos in self.model.grid.coord_iter():
@@ -120,6 +107,15 @@ class Bot(Agent):
             for obj in contents:
                 if isinstance(obj, SPackage):
                     return (x, y)
+
+    def find_charger(self):
+        for pos in self.model.grid.coord_iter():
+            _, (x, y) = pos
+            contents = self.model.grid.get_cell_list_contents([x, y])
+            for obj in contents:
+                if isinstance(obj, Charger):
+                    return (x, y)
+        return None
 
     def a_star(self, start, goal):
         open_list = []
@@ -172,7 +168,42 @@ class Bot(Agent):
                 return neighbor
         return self.pos
 
+    def is_adjacent_to_charger(self, pos):
+        x, y = pos
+        neighbors = [(x + dx, y + dy) for dx in [-1, 0, 1] for dy in [-1, 0, 1] if dx != 0 or dy != 0]
+        for neighbor in neighbors:
+            if any(isinstance(agent, Charger) for agent in self.model.grid.get_cell_list_contents(neighbor)):
+                return neighbor
+        return None
+
     def step(self):
+        # Check if the battery is low and the bot needs to charge
+        if self.battery < 20 and not self.charging:
+            charger_pos = self.find_charger()
+            if charger_pos:
+                self.goal = charger_pos
+                self.path = self.a_star(self.pos, self.goal)
+                self.charging = True
+
+        if self.charging:
+            adjacent_charger_pos = self.is_adjacent_to_charger(self.pos)
+            if adjacent_charger_pos:  # At the charger or adjacent to it
+                self.battery += 20  # Recharge
+                if self.battery >= 100:  # Fully charged
+                    self.battery = 100
+                    self.charging = False
+                    self.goal = None
+                    self.path = []
+            else:  # Move towards the charger
+                if self.path:
+                    self.next_pos = self.path.pop(0)
+                    if not self.detect_collision(self.next_pos):
+                        self.model.grid.move_agent(self, self.next_pos)
+                        self.movements += 1
+                        self.battery -= 1  # Deplete battery slightly while moving
+            return
+
+        # Normal operations (if not charging)
         if self.battery > 0 and self.path and self.goal:
             self.next_pos = self.path.pop(0)
 
@@ -212,13 +243,15 @@ class Bot(Agent):
                 self.model.grid.move_agent(self, self.next_pos)
 
         elif self.battery > 0 and self.goal is None and not self.path:
-            self.goal = self.tasks.pop()[0]
-            self.path = self.a_star(self.pos, self.goal)
-            if self.path:
-                self.next_pos = self.path.pop(0)
-                self.movements += 1
-                self.battery -= 1
-                self.model.grid.move_agent(self, self.next_pos)
+            if self.tasks:
+                self.goal = self.tasks.pop()[0]
+                self.path = self.a_star(self.pos, self.goal)
+                if self.path:
+                    self.next_pos = self.path.pop(0)
+                    self.movements += 1
+                    self.battery -= 1
+                    self.model.grid.move_agent(self, self.next_pos)
+
 
 class Environment(Model):
     def __init__(self, M: int, N: int, num_agents: int = 5, num_goals: int = 1, obstacle_portion: float = 0.3, mode_start_pos='Random'):
@@ -227,6 +260,7 @@ class Environment(Model):
         self.num_goals = num_goals
         self.grid = SingleGrid(M, N, False)
         self.schedule = SimultaneousActivation(self)
+        self.step_count = 0
         self.num_goals_slider = num_goals  
         self.mode_start_pos = mode_start_pos
         self.special_cell = []
@@ -236,21 +270,21 @@ class Environment(Model):
 
         self.desc = [
         'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
-        'WDDDFFFFFFFFFFFFFFFFFFFFFFFFFFFFEEEFFW',
+        'WFDFDFDFFFFFFFFFFFFFFFFFFFFFFEFEFEFEFW',
         'WFFFRFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
         'WFFFFFFFFFRFFFFFFFFFFFFFFFFFFFFFFFFFFW',
-        'WFFSSFFFSSFFFSSFFFSSFFFSSFFFSSFFFSSFFW',
-        'WFFSSFFFSSFFFSSFFFSSFFFSSFFFSSFFFSSFFW',
         'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
-        'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
-        'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
-        'WCFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
-        'WFFFFFFFFFFFFFFFFGGGGFFFFFFFFFFFFFFFFW',
-        'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
-        'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
-        'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
-        'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
-        'WCFFFFFFDFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'WFFFFFFFSFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'WFFFFFFFSFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'WFFFFFFFSFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'WFFFFFFFSFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'WCFFFFFFSFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'WFFFFFFFSFFFFFFFFGGGGFFFFFFFFFFFFFFFFW',
+        'WFFFFFFFSFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'WFFFFFFFSFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'WFFFFFFFSFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'WFFFFFFFSFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'WCFFFFFFSFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
         'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
         'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
         'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
@@ -259,7 +293,6 @@ class Environment(Model):
         'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
     ]
 
-        
         self._manual_placement(self.desc)
 
         self.datacollector = DataCollector(
@@ -315,4 +348,3 @@ class Environment(Model):
         self.datacollector.collect(self)
         self.schedule.step()
         self.running = any([a.battery > 0 for a in self.schedule.agents if isinstance(a, Bot)])
-
