@@ -1,25 +1,34 @@
 import mesa
-from model import Environment, Bot, Shelf, Goal, Wall, Charger, SPackage, EPackage
+from model import Environment, Bot, ShelfA, ShelfB, ShelfC, Wall, Charger, SPackage, PackageA, PackageB, PackageC
 
 def agent_portrayal(agent):
     if isinstance(agent, Bot):
         return {"Shape": "circle", "Filled": "false", "Color": "Cyan", "Layer": 1, "r": 0.9,
                 "text": f"{agent.battery}", "text_color": "black"}
-    elif isinstance(agent, Shelf):
+    elif isinstance(agent, ShelfA):
         return {"Shape": "rect", "Filled": "true", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
-                "Color": "#ccbeaf", "text": "🫦"}
+                "Color": "#FFB200", "text": "🪟"}
+    elif isinstance(agent, ShelfB):
+        return {"Shape": "rect", "Filled": "true", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
+                "Color": "#FFCB42", "text": "🪟"}
+    elif isinstance(agent, ShelfC):
+        return {"Shape": "rect", "Filled": "true", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
+                "Color": "#FFC54D", "text": "🪟"}
     elif isinstance(agent, Wall):
         return {"Shape": "rect", "Filled": "true", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
                 "Color": "#000000", "text": ""}
-    elif isinstance(agent, Goal):
-        return {"Shape": "rect", "Filled": "false", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
-                "Color": "#ccbeaf", "text": "🎁"}
     elif isinstance(agent, Charger):
         return {"Shape": "rect", "Filled": "false", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
                 "Color": "#ccbeaf", "text": "🪫"}
-    elif isinstance(agent, EPackage):
+    elif isinstance(agent, PackageA):
         return {"Shape": "rect", "Filled": "true", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
-                "Color": "#ccbeaf", "text": "📦"}
+                "Color": "#FFB200", "text": "📦"}
+    elif isinstance(agent, PackageB):
+        return {"Shape": "rect", "Filled": "true", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
+                "Color": "#FFCB42", "text": "📦"}
+    elif isinstance(agent, PackageC):
+        return {"Shape": "rect", "Filled": "true", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
+                "Color": "#FFC54D", "text": "📦"}
     elif isinstance(agent, SPackage):
         return {"Shape": "rect", "Filled": "true", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
                 "Color": "#ccbeaf", "text": "🚚"}
@@ -51,3 +60,10 @@ server = mesa.visualization.ModularServer(
 )
 
 server.launch(open_browser=True)
+
+
+"""
+ elif isinstance(agent, Goal):
+        return {"Shape": "rect", "Filled": "false", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
+                "Color": "#ccbeaf", "text": "📦"}
+"""

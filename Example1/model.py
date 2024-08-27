@@ -7,7 +7,384 @@ from mesa.space import SingleGrid
 from mesa.time import SimultaneousActivation
 from mesa.datacollection import DataCollector
 
+"""
+class ShelfA(Agent):
+    def __init__(self, unique_id, model, capacity=3):
+        super().__init__(unique_id, model)
+        self.capacity = capacity
 
+    def has_capacity(self):
+        return self.capacity > 0
+
+    def decrement_capacity(self):
+        if self.capacity > 0:
+            self.capacity -= 1
+
+class ShelfB(Agent):
+    def __init__(self, unique_id, model, capacity=3):
+        super().__init__(unique_id, model)
+        self.capacity = capacity
+
+    def has_capacity(self):
+        return self.capacity > 0
+
+    def decrement_capacity(self):
+        if self.capacity > 0:
+            self.capacity -= 1
+
+class ShelfC(Agent):
+    def __init__(self, unique_id, model, capacity=3):
+        super().__init__(unique_id, model)
+        self.capacity = capacity
+
+    def has_capacity(self):
+        return self.capacity > 0
+
+    def decrement_capacity(self):
+        if self.capacity > 0:
+            self.capacity -= 1
+
+class TaskManager(Agent):
+    def __init__(self, unique_id, model):
+        super().__init__(unique_id, model)
+        self.tasks_A = []  # Lista de tareas pendientes para PackageA
+        self.tasks_B = []  # Lista de tareas pendientes para PackageB
+        self.tasks_C = []  # Lista de tareas pendientes para PackageC
+        self.robot_statuses = {}
+
+    def step(self):
+        # Asignar tareas a los robots libres
+        for bot in self.model.schedule.agents:
+            if isinstance(bot, Bot) and not bot.tasks:
+                if bot.preferred_package == "A" and self.tasks_A:
+                    task = self.tasks_A.pop(0)
+                    bot.getTasks(task)
+                elif bot.preferred_package == "B" and self.tasks_B:
+                    task = self.tasks_B.pop(0)
+                    bot.getTasks(task)
+                elif bot.preferred_package == "C" and self.tasks_C:
+                    task = self.tasks_C.pop(0)
+                    bot.getTasks(task)
+
+    def add_task(self, task, package_type):
+        if package_type == "A":
+            self.tasks_A.append(task)
+        elif package_type == "B":
+            self.tasks_B.append(task)
+        elif package_type == "C":
+            self.tasks_C.append(task)
+
+    def report_completion(self, robot_id):
+        self.robot_statuses[robot_id] = "Free"
+
+class PackageA(Agent):
+    def __init__(self, unique_id, model):
+        super().__init__(unique_id, model)
+
+
+class PackageB(Agent):
+    def __init__(self, unique_id, model):
+        super().__init__(unique_id, model)
+
+
+class PackageC(Agent):
+    def __init__(self, unique_id, model):
+        super().__init__(unique_id, model)
+
+
+class SPackage(Agent):
+    def __init__(self, unique_id, model):
+        super().__init__(unique_id, model)
+
+
+class Charger(Agent):
+    def __init__(self, unique_id, model):
+        super().__init__(unique_id, model)
+
+
+class Wall(Agent):
+    def __init__(self, unique_id, model):
+        super().__init__(unique_id, model)
+
+"""
+class Goal(Agent):
+    def __init__(self, unique_id, model):
+        super().__init__(unique_id, model)
+"""
+
+
+class Bot(Agent):
+    def __init__(self, unique_id, model, preferred_package):
+        super().__init__(unique_id, model)
+        self.next_pos = None
+        self.luck = np.random.uniform(0.2, 1.0)
+        self.movements = 0
+        self.battery = 500
+        self.path = []
+        self.carry = False
+        self.tasks = []
+        self.goal = None
+        self.charging = False
+        self.preferred_package = preferred_package  # "A", "B", or "C"
+
+    def getTasks(self, task):
+        self.tasks.append(task)
+
+    def euclidean_heuristic(self, pos, goal):
+        return np.sqrt((pos[0] - goal[0])**2 + (pos[1] - goal[1])**2)
+
+    def find_exit(self):
+        for pos in self.model.grid.coord_iter():
+            _, (x, y) = pos
+            contents = self.model.grid.get_cell_list_contents([x, y])
+            for obj in contents:
+                if isinstance(obj, SPackage):
+                    return (x, y)
+
+    def find_charger(self):
+        for pos in self.model.grid.coord_iter():
+            _, (x, y) = pos
+            contents = self.model.grid.get_cell_list_contents([x, y])
+            for obj in contents:
+                if isinstance(obj, Charger):
+                    return (x, y)
+        return None
+
+    def a_star(self, start, goal, avoid_positions=[]):
+        open_list = []
+        closed_list = set()
+
+        open_list.append((0 + self.euclidean_heuristic(start, goal), 0, start, None))
+
+        while open_list:
+            open_list.sort(key=lambda x: x[0])
+            f, g, current, parent = open_list.pop(0)
+
+            if current == goal:
+                path = []
+                while parent is not None:
+                    path.append(current)
+                    current = parent
+                    parent = next((p for f, g, c, p in closed_list if c == current), None)
+                path.reverse()
+                return path
+
+            closed_list.add((f, g, current, parent))
+
+            for neighbor in self.model.grid.iter_neighborhood(current, moore=False, include_center=False):
+                if self.model.grid.is_cell_empty(neighbor) or neighbor == goal:
+                    if neighbor in avoid_positions:
+                        continue  # Skip this neighbor if it's in the avoid_positions list
+                    g_new = g + 1
+                    h_new = self.euclidean_heuristic(neighbor, goal)
+                    f_new = g_new + h_new
+
+                    if any(neighbor == c for f, g, c, p in closed_list):
+                        continue
+
+                    existing_node = next((i for i, (f, g, c, p) in enumerate(open_list) if c == neighbor), None)
+                    if existing_node is not None:
+                        if open_list[existing_node][0] > f_new:
+                            open_list[existing_node] = (f_new, g_new, neighbor, current)
+                    else:
+                        open_list.append((f_new, g_new, neighbor, current))
+
+        return []
+
+    def detect_collision(self, next_pos):
+        for agent in self.model.grid.get_neighbors(self.pos, moore=False, include_center=False, radius=1):
+            if isinstance(agent, Bot) and agent.next_pos == next_pos:
+                return True
+        return False
+
+    
+
+    def avoid_collision(self):
+        for neighbor in self.model.grid.iter_neighborhood(self.pos, moore=False, include_center=False):
+            if self.model.grid.is_cell_empty(neighbor):
+                return neighbor
+        return self.pos
+    
+    def is_adjacent_to_charger(self, pos):
+        x, y = pos
+        neighbors = [(x + dx, y + dy) for dx in [-1, 0, 1] for dy in [-1, 0, 1] if dx != 0 or dy != 0]
+        for neighbor in neighbors:
+            if any(isinstance(agent, Charger) for agent in self.model.grid.get_cell_list_contents(neighbor)):
+                return neighbor
+        return None
+    
+    def find_alternative_path(self, start, goal):
+        avoid_positions = [agent.next_pos for agent in self.model.schedule.agents if isinstance(agent, Bot) and agent.next_pos is not None]
+        return self.a_star(start, goal, avoid_positions)
+    
+    def step(self):
+        # Check if the battery is low and the bot needs to charge
+        if self.battery < 200 and not self.carry and not self.charging:
+            charger_pos = self.find_charger()
+            if charger_pos:
+                self.goal = charger_pos
+                self.path = self.a_star(self.pos, self.goal)
+                self.charging = True
+
+        if self.charging:
+            if self.model.grid.get_cell_list_contents([self.pos]) == [self.goal]:  # At the charger
+                self.battery += 100  # Recharge
+                if self.battery >= 500:  # Fully charged
+                    self.battery = 500
+                    self.charging = False
+                    self.goal = None
+                    self.path = []
+            else:  # Move towards the charger
+                if self.path:
+                    self.next_pos = self.path.pop(0)
+                    if self.detect_collision(self.next_pos):
+                        self.next_pos = self.avoid_collision()
+                    self.model.grid.move_agent(self, self.next_pos)
+                    self.battery -= 1  # Deplete battery while moving
+            return
+
+        # Normal operations (if not charging)
+        if self.battery > 0 and self.path and self.goal:
+            self.next_pos = self.path.pop(0)
+
+            if self.detect_collision(self.next_pos):
+                self.next_pos = self.avoid_collision()
+
+            if self.model.grid.is_cell_empty(self.next_pos):
+                self.model.grid.move_agent(self, self.next_pos)
+                self.battery -= 1
+                self.movements += 1
+
+            if not self.carry:
+                package_type = {"A": PackageA, "B": PackageB, "C": PackageC}[self.preferred_package]
+                box_in_next_pos = [agent for agent in self.model.grid.get_cell_list_contents([self.next_pos]) if isinstance(agent, package_type)]
+                if box_in_next_pos:
+                    goal = box_in_next_pos[0]
+                    self.model.grid.remove_agent(goal)
+                    self.carry = True
+                    self.goal = self.find_exit()
+                    self.path = self.a_star(self.pos, self.goal)
+
+            if self.carry:
+                exit_in_next_pos = [agent for agent in self.model.grid.get_cell_list_contents([self.next_pos]) if isinstance(agent, SPackage)]
+                if exit_in_next_pos:
+                    self.carry = False
+                    if self.tasks:
+                        self.goal = self.tasks.pop()[0]
+                        self.path = self.a_star(self.pos, self.goal)
+
+        elif self.battery > 0 and not self.tasks:
+            if self.tasks:
+                self.goal = self.tasks.pop()[0]
+                self.path = self.a_star(self.pos, self.goal)
+
+
+class Environment(Model):
+    def __init__(self, M: int, N: int, num_agents: int = 5, num_goals: int = 1, obstacle_portion: float = 0.3, mode_start_pos='Random'):
+        super().__init__()
+        self.num_agents = num_agents
+        self.num_goals = num_goals
+        self.grid = SingleGrid(M, N, False)
+        self.schedule = SimultaneousActivation(self)
+        self.step_count = 0
+        self.num_goals_slider = num_goals  
+        self.mode_start_pos = mode_start_pos
+        self.special_cell = []
+
+        self.central_system = TaskManager(self.next_id(), self)
+        self.schedule.add(self.central_system)
+
+        self.desc = [
+        'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
+        'WFDFDFDFFFFFFFFFFFFFFFFFFFFFFYFXFYFZFW',
+        'WFFFRFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'WFFFFFFFFFRFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'WFFFFFFFCCFFFFFFFFBBFFFFFFFFAAFFFFFFFW',
+        'WHFFFFFFCCFFFFFFFFBBFFFFFFFFAAFFFFFFHW',
+        'WFFFFFFFCCFFFFFFFFBBFFFFFFFFAAFFFFFFFW',
+        'WFFFFFFFCCFFFFFFFFBBFFFFFFFFAAFFFFFFFW',
+        'WFFFFFFFCCFFFFFFFFBBFFFFFFFFAAFFFFFFFW',
+        'WHFFFFFFCCFFFFFFFFBBFFFFFFFFAAFFFFFFHW',
+        'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'WHFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFHW',
+        'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
+    ]
+
+        self._manual_placement(self.desc)
+
+        self.datacollector = DataCollector(
+            model_reporters={
+                "MinBattery": lambda m: np.min([a.battery for a in m.schedule.agents if isinstance(a, Bot)]).astype(float),
+                "MaxBattery": lambda m: np.max([a.battery for a in m.schedule.agents if isinstance(a, Bot)]).astype(float),
+                "MeanBattery": lambda m: np.mean([a.battery for a in m.schedule.agents if isinstance(a, Bot)]).astype(float),
+            }
+        )
+
+    def _manual_placement(self, desc):
+        goalPos = (0, 0)
+        box_position = []
+
+        N = self.grid.height  # Rows
+        M = self.grid.width  # Columns
+
+        for pos in self.grid.coord_iter():
+            _, (x, y) = pos
+            # Ensure y is within bounds of desc
+            if y < len(desc) and x < len(desc[y]):
+                if desc[y][x] == 'A':  
+                    shelf = ShelfA(self.next_id(), self, capacity=3)
+                    self.grid.place_agent(shelf, (x, y))
+                if desc[y][x] == 'B':  
+                    shelf = ShelfB(self.next_id(), self, capacity=3)
+                    self.grid.place_agent(shelf, (x, y))
+                if desc[y][x] == 'C':  
+                    shelf = ShelfC(self.next_id(), self, capacity=3)
+                    self.grid.place_agent(shelf, (x, y))
+                elif desc[y][x] == 'W':  
+                    wall = Wall(self.next_id(), self)
+                    self.grid.place_agent(wall, (x, y))
+
+                elif desc[y][x] == 'H':  
+                    charger = Charger(self.next_id(), self)
+                    self.grid.place_agent(charger, (x, y))
+                elif desc[y][x] == 'X':  
+                    goal = (x, y)
+                    goall = PackageA(self.next_id(), self)
+                    self.special_cell.append(goal)
+                    box_position.append((x, y))
+                    self.grid.place_agent(goall, (x, y))
+                elif desc[y][x] == 'Y':  
+                    entrada = PackageB(self.next_id(), self)
+                    self.grid.place_agent(entrada, (x, y))
+                elif desc[y][x] == 'Z':  
+                    entrada = PackageC(self.next_id(), self)
+                    self.grid.place_agent(entrada, (x, y))
+                elif desc[y][x] == 'D':  
+                    salida = SPackage(self.next_id(), self)
+                    self.grid.place_agent(salida, (x, y))
+                elif desc[y][x] == 'R':  
+                    bot = Bot(self.next_id(), self, preferred_package="A")  # Cambia "A" a "B" o "C" según el bot
+                    self.grid.place_agent(bot, (x, y))
+                    self.schedule.add(bot)
+
+        for box_pos in box_position:
+            self.central_system.add_task((box_pos, goalPos), "A")  # Cambia "A" a "B" o "C" según el tipo de paquete
+
+
+    def step(self):
+        self.datacollector.collect(self)
+        self.schedule.step()
+        self.running = any([a.battery > 0 for a in self.schedule.agents if isinstance(a, Bot)])
+"""
 """
     TO DO: 
      - Hacer que los robots se rodeen si van a colisionar (no intercambiar posiciones)
@@ -20,7 +397,7 @@ from mesa.datacollection import DataCollector
 """
 
 
-class Shelf(Agent):
+class ShelfA(Agent):
     def __init__(self, unique_id, model, capacity=3):
         super().__init__(unique_id, model)
         self.capacity = capacity
@@ -32,6 +409,29 @@ class Shelf(Agent):
         if self.capacity > 0:
             self.capacity -= 1
 
+class ShelfB(Agent):
+    def __init__(self, unique_id, model, capacity=3):
+        super().__init__(unique_id, model)
+        self.capacity = capacity
+
+    def has_capacity(self):
+        return self.capacity > 0
+
+    def decrement_capacity(self):
+        if self.capacity > 0:
+            self.capacity -= 1
+
+class ShelfC(Agent):
+    def __init__(self, unique_id, model, capacity=3):
+        super().__init__(unique_id, model)
+        self.capacity = capacity
+
+    def has_capacity(self):
+        return self.capacity > 0
+
+    def decrement_capacity(self):
+        if self.capacity > 0:
+            self.capacity -= 1
 
 class TaskManager(Agent):
     def __init__(self, unique_id, model):
@@ -55,8 +455,17 @@ class TaskManager(Agent):
     def report_completion(self, robot_id):
         self.robot_statuses[robot_id] = "Free"
 
+class PackageA(Agent):
+    def __init__(self, unique_id, model):
+        super().__init__(unique_id, model)
 
-class EPackage(Agent):
+
+class PackageB(Agent):
+    def __init__(self, unique_id, model):
+        super().__init__(unique_id, model)
+
+
+class PackageC(Agent):
     def __init__(self, unique_id, model):
         super().__init__(unique_id, model)
 
@@ -76,18 +485,13 @@ class Wall(Agent):
         super().__init__(unique_id, model)
 
 
-class Goal(Agent):
-    def __init__(self, unique_id, model):
-        super().__init__(unique_id, model)
-
-
 class Bot(Agent):
     def __init__(self, unique_id, model):
         super().__init__(unique_id, model)
         self.next_pos = None
         self.luck = np.random.uniform(0.2, 1.0)
         self.movements = 0
-        self.battery = 100
+        self.battery = 500
         self.path = []
         self.carry = False
         self.tasks = []
@@ -116,8 +520,16 @@ class Bot(Agent):
                 if isinstance(obj, Charger):
                     return (x, y)
         return None
+    
+    def is_adjacent_to_charger(self, pos):
+        x, y = self.pos
+        neighbors = [(x + dx, y + dy) for dx in [-1, 0, 1] for dy in [-1, 0, 1] if dx != 0 or dy != 0]
+        for neighbor in neighbors:
+            if neighbor == self.assigned_charger:
+                return True
+        return False
 
-    def a_star(self, start, goal):
+    def a_star(self, start, goal, avoid_positions=[]):
         open_list = []
         closed_list = set()
 
@@ -140,6 +552,8 @@ class Bot(Agent):
 
             for neighbor in self.model.grid.iter_neighborhood(current, moore=False, include_center=False):
                 if self.model.grid.is_cell_empty(neighbor) or neighbor == goal:
+                    if neighbor in avoid_positions:
+                        continue  # Skip this neighbor if it's in the avoid_positions list
                     g_new = g + 1
                     h_new = self.euclidean_heuristic(neighbor, goal)
                     f_new = g_new + h_new
@@ -162,6 +576,10 @@ class Bot(Agent):
                 return True
         return False
 
+    def find_alternative_path(self, start, goal):
+        avoid_positions = [agent.next_pos for agent in self.model.schedule.agents if isinstance(agent, Bot) and agent.next_pos is not None]
+        return self.a_star(start, goal, avoid_positions)
+
     def avoid_collision(self):
         for neighbor in self.model.grid.iter_neighborhood(self.pos, moore=False, include_center=False):
             if self.model.grid.is_cell_empty(neighbor):
@@ -177,8 +595,8 @@ class Bot(Agent):
         return None
 
     def step(self):
-        # Check if the battery is low and the bot needs to charge
-        if self.battery < 20 and not self.charging:
+        # Check if the battery is low and the bot needs to charge, but only if not carrying a goal
+        if self.battery < 200 and not self.carry and not self.charging:
             charger_pos = self.find_charger()
             if charger_pos:
                 self.goal = charger_pos
@@ -186,21 +604,25 @@ class Bot(Agent):
                 self.charging = True
 
         if self.charging:
-            adjacent_charger_pos = self.is_adjacent_to_charger(self.pos)
-            if adjacent_charger_pos:  # At the charger or adjacent to it
-                self.battery += 20  # Recharge
-                if self.battery >= 100:  # Fully charged
-                    self.battery = 100
+            if self.is_adjacent_to_charger(self.pos):  # At the charger or adjacent to it
+                self.battery += 100  # Recharge
+                if self.battery >= 500:  # Fully charged
+                    self.battery = 500
                     self.charging = False
                     self.goal = None
                     self.path = []
             else:  # Move towards the charger
                 if self.path:
                     self.next_pos = self.path.pop(0)
-                    if not self.detect_collision(self.next_pos):
-                        self.model.grid.move_agent(self, self.next_pos)
-                        self.movements += 1
-                        self.battery -= 1  # Deplete battery slightly while moving
+                    if self.detect_collision(self.next_pos):
+                        self.path = self.find_alternative_path(self.pos, self.goal)
+                        if self.path:
+                            self.next_pos = self.path.pop(0)
+                        else:
+                            return  # No alternative path found, wait in place
+                    self.model.grid.move_agent(self, self.next_pos)
+                    self.movements += 1
+                    self.battery = max(0, self.battery - 1)  # Deplete battery slightly while moving
             return
 
         # Normal operations (if not charging)
@@ -208,14 +630,15 @@ class Bot(Agent):
             self.next_pos = self.path.pop(0)
 
             if self.detect_collision(self.next_pos):
-                self.next_pos = self.avoid_collision()
-                if self.next_pos == self.pos:
-                    return
+                self.path = self.find_alternative_path(self.pos, self.goal)
+                if not self.path:
+                    return  # No alternative path found, wait in place
+                self.next_pos = self.path.pop(0)
 
             self.movements += 1
-            self.battery -= 1
+            self.battery = max(0, self.battery - 1)
             if not self.carry:
-                box_in_next_pos = [agent for agent in self.model.grid.get_cell_list_contents([self.next_pos]) if isinstance(agent, Goal)]
+                box_in_next_pos = [agent for agent in self.model.grid.get_cell_list_contents([self.next_pos]) if isinstance(agent, (PackageA, PackageB, PackageC))]
                 if box_in_next_pos:
                     goal = box_in_next_pos[0]
                     self.model.grid.remove_agent(goal)
@@ -227,7 +650,6 @@ class Bot(Agent):
                 exit_in_next_pos = [agent for agent in self.model.grid.get_cell_list_contents([self.next_pos]) if isinstance(agent, SPackage)]
                 if exit_in_next_pos:
                     # Interact with the SPackage without removing it
-                    # Example interaction: stop moving and "drop off" the carried item
                     self.carry = False
                     if self.tasks:
                         self.goal = self.tasks.pop()[0]
@@ -236,7 +658,7 @@ class Bot(Agent):
                             self.next_pos = self.path.pop(0)
                             self.model.grid.move_agent(self, self.next_pos)
                             self.movements += 1
-                            self.battery -= 1
+                            self.battery = max(0, self.battery - 1)
                 else:
                     self.model.grid.move_agent(self, self.next_pos)
             else:
@@ -249,7 +671,7 @@ class Bot(Agent):
                 if self.path:
                     self.next_pos = self.path.pop(0)
                     self.movements += 1
-                    self.battery -= 1
+                    self.battery = max(0, self.battery - 1)
                     self.model.grid.move_agent(self, self.next_pos)
 
 
@@ -270,25 +692,25 @@ class Environment(Model):
 
         self.desc = [
         'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
-        'WFDFDFDFFFFFFFFFFFFFFFFFFFFFFEFEFEFEFW',
+        'WFDFDFDFFFFFFFFFFFFFFFFFFFFFFYFXFYFZFW',
         'WFFFRFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
         'WFFFFFFFFFRFFFFFFFFFFFFFFFFFFFFFFFFFFW',
         'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
-        'WFFFFFFFSFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
-        'WFFFFFFFSFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
-        'WFFFFFFFSFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
-        'WFFFFFFFSFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
-        'WCFFFFFFSFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
-        'WFFFFFFFSFFFFFFFFGGGGFFFFFFFFFFFFFFFFW',
-        'WFFFFFFFSFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
-        'WFFFFFFFSFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
-        'WFFFFFFFSFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
-        'WFFFFFFFSFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
-        'WCFFFFFFSFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
         'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
         'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
         'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
-        'WCFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'WFFFFFFFCCFFFFFFFFBBFFFFFFFFAAFFFFFFFW',
+        'WHFFFFFFCCFFFFFFFFBBFFFFFFFFAAFFFFFFHW',
+        'WFFFFFFFCCFFFFFFFFBBFFFFFFFFAAFFFFFFFW',
+        'WFFFFFFFCCFFFFFFFFBBFFFFFFFFAAFFFFFFFW',
+        'WFFFFFFFCCFFFFFFFFBBFFFFFFFFAAFFFFFFFW',
+        'WHFFFFFFCCFFFFFFFFBBFFFFFFFFAAFFFFFFHW',
+        'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'WHFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFHW',
         'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
         'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
     ]
@@ -314,23 +736,33 @@ class Environment(Model):
             _, (x, y) = pos
             # Ensure y is within bounds of desc
             if y < len(desc) and x < len(desc[y]):
-                if desc[y][x] == 'S':  
-                    shelf = Shelf(self.next_id(), self, capacity=3)
+                if desc[y][x] == 'A':  
+                    shelf = ShelfA(self.next_id(), self, capacity=3)
+                    self.grid.place_agent(shelf, (x, y))
+                if desc[y][x] == 'B':  
+                    shelf = ShelfB(self.next_id(), self, capacity=3)
+                    self.grid.place_agent(shelf, (x, y))
+                if desc[y][x] == 'C':  
+                    shelf = ShelfC(self.next_id(), self, capacity=3)
                     self.grid.place_agent(shelf, (x, y))
                 elif desc[y][x] == 'W':  
                     wall = Wall(self.next_id(), self)
                     self.grid.place_agent(wall, (x, y))
-                elif desc[y][x] == 'G':  
+
+                elif desc[y][x] == 'H':  
+                    charger = Charger(self.next_id(), self)
+                    self.grid.place_agent(charger, (x, y))
+                elif desc[y][x] == 'X':  
                     goal = (x, y)
-                    goall = Goal(self.next_id(), self)
+                    goall = PackageA(self.next_id(), self)
                     self.special_cell.append(goal)
                     box_position.append((x, y))
                     self.grid.place_agent(goall, (x, y))
-                elif desc[y][x] == 'C':  
-                    charger = Charger(self.next_id(), self)
-                    self.grid.place_agent(charger, (x, y))
-                elif desc[y][x] == 'E':  
-                    entrada = EPackage(self.next_id(), self)
+                elif desc[y][x] == 'Y':  
+                    entrada = PackageB(self.next_id(), self)
+                    self.grid.place_agent(entrada, (x, y))
+                elif desc[y][x] == 'Z':  
+                    entrada = PackageC(self.next_id(), self)
                     self.grid.place_agent(entrada, (x, y))
                 elif desc[y][x] == 'D':  
                     salida = SPackage(self.next_id(), self)
