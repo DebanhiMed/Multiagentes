@@ -106,12 +106,6 @@ class Wall(Agent):
     def __init__(self, unique_id, model):
         super().__init__(unique_id, model)
 
-"""
-class Goal(Agent):
-    def __init__(self, unique_id, model):
-        super().__init__(unique_id, model)
-"""
-
 
 class Bot(Agent):
     def __init__(self, unique_id, model, preferred_package):
@@ -447,7 +441,7 @@ class TaskManager(Agent):
                 if not bot.charging and self.tasks:
                     task = self.tasks.pop(0)
                     bot.getTasks(task)
-
+    """
     def assign_charger(self, bot):
         # Assign the closest unoccupied charger to the bot
         closest_charger = None
@@ -470,6 +464,7 @@ class TaskManager(Agent):
         # Free up the charger when the bot is done charging
         if charger_id in self.charger_occupancy:
             del self.charger_occupancy[charger_id]
+    """
 
     def report_completion(self, robot_id):
         self.robot_statuses[robot_id] = "Free"
@@ -517,7 +512,7 @@ class Bot(Agent):
         self.carry = False
         self.tasks = []
         self.goal = None
-        self.charging = False
+        #self.charging = False
         self.isCarryingA = False
         self.isCarryingB = False
         self.isCarryingC = False
@@ -535,7 +530,7 @@ class Bot(Agent):
             for obj in contents:
                 if isinstance(obj, SPackage):
                     return (x, y)
-
+    """
     def find_charger(self):
         for pos in self.model.grid.coord_iter():
             _, (x, y) = pos
@@ -552,6 +547,17 @@ class Bot(Agent):
             if neighbor == self.assigned_charger:
                 return True
         return False
+
+    //checar que es la diferencia entre estas dos funciones??
+
+    def is_adjacent_to_charger(self, pos):
+        x, y = pos
+        neighbors = [(x + dx, y + dy) for dx in [-1, 0, 1] for dy in [-1, 0, 1] if dx != 0 or dy != 0]
+        for neighbor in neighbors:
+            if any(isinstance(agent, Charger) for agent in self.model.grid.get_cell_list_contents(neighbor)):
+                return neighbor
+        return None
+    """
 
     def a_star(self, start, goal, avoid_positions=[]):
         open_list = []
@@ -610,15 +616,8 @@ class Bot(Agent):
                 return neighbor
         return self.pos
 
-    def is_adjacent_to_charger(self, pos):
-        x, y = pos
-        neighbors = [(x + dx, y + dy) for dx in [-1, 0, 1] for dy in [-1, 0, 1] if dx != 0 or dy != 0]
-        for neighbor in neighbors:
-            if any(isinstance(agent, Charger) for agent in self.model.grid.get_cell_list_contents(neighbor)):
-                return neighbor
-        return None
-
     def step(self):
+        """
         # Check if the battery is low and the bot needs to charge, but only if not carrying a goal
         if self.battery < 460 and not self.carry and not self.charging:
             charger_pos = self.find_charger()
@@ -652,7 +651,7 @@ class Bot(Agent):
                     self.movements += 1
                     self.battery = max(0, self.battery - 1)  # Deplete battery slightly while moving
             return
-
+    """
         # Normal operations (if not charging)
         if self.battery > 0 and self.path and self.goal:
             self.next_pos = self.path.pop(0)
