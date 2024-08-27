@@ -438,22 +438,44 @@ class TaskManager(Agent):
         super().__init__(unique_id, model)
         self.tasks = []  # Lista de tareas pendientes
         self.robot_statuses = {}
-        self.battery = 100
+        self.charger_occupancy = {}  # Tracks which chargers are occupied
 
     def step(self):
         # Asignar tareas a los robots libres
         for bot in self.model.schedule.agents:
             if isinstance(bot, Bot):
-                if self.tasks:
+                if not bot.charging and self.tasks:
                     task = self.tasks.pop(0)
                     bot.getTasks(task)
 
+    def assign_charger(self, bot):
+        # Assign the closest unoccupied charger to the bot
+        closest_charger = None
+        min_distance = float('inf')
+        for charger in self.model.grid.get_neighbors(bot.pos, include_center=True):
+            if isinstance(charger, Charger) and charger.unique_id not in self.charger_occupancy:
+                distance = bot.euclidean_heuristic(bot.pos, charger.pos)
+                if distance < min_distance:
+                    closest_charger = charger
+                    min_distance = distance
 
-    def add_task(self, task):
-        self.tasks.append(task)
+        if closest_charger:
+            self.charger_occupancy[closest_charger.unique_id] = bot.unique_id
+            bot.assigned_charger = closest_charger.pos
+            bot.goal = closest_charger.pos
+            bot.path = bot.a_star(bot.pos, bot.goal)
+            bot.charging = True
+
+    def release_charger(self, charger_id):
+        # Free up the charger when the bot is done charging
+        if charger_id in self.charger_occupancy:
+            del self.charger_occupancy[charger_id]
 
     def report_completion(self, robot_id):
         self.robot_statuses[robot_id] = "Free"
+
+    def add_task(self, task):
+        self.tasks.append(task)
 
 class PackageA(Agent):
     def __init__(self, unique_id, model):
@@ -489,7 +511,6 @@ class Bot(Agent):
     def __init__(self, unique_id, model):
         super().__init__(unique_id, model)
         self.next_pos = None
-        self.luck = np.random.uniform(0.2, 1.0)
         self.movements = 0
         self.battery = 500
         self.path = []
@@ -497,6 +518,9 @@ class Bot(Agent):
         self.tasks = []
         self.goal = None
         self.charging = False
+        self.isCarryingA = False
+        self.isCarryingB = False
+        self.isCarryingC = False
 
     def getTasks(self, task):
         self.tasks.append(task)
@@ -596,7 +620,7 @@ class Bot(Agent):
 
     def step(self):
         # Check if the battery is low and the bot needs to charge, but only if not carrying a goal
-        if self.battery < 200 and not self.carry and not self.charging:
+        if self.battery < 460 and not self.carry and not self.charging:
             charger_pos = self.find_charger()
             if charger_pos:
                 self.goal = charger_pos
@@ -609,8 +633,12 @@ class Bot(Agent):
                 if self.battery >= 500:  # Fully charged
                     self.battery = 500
                     self.charging = False
-                    self.goal = None
-                    self.path = []
+
+                    if self.tasks:
+                        self.goal = self.tasks.pop()[0]
+                        self.path = self.a_star(self.pos, self.goal)
+                    else:
+                        self.find_new_task()
             else:  # Move towards the charger
                 if self.path:
                     self.next_pos = self.path.pop(0)
@@ -643,6 +671,7 @@ class Bot(Agent):
                     goal = box_in_next_pos[0]
                     self.model.grid.remove_agent(goal)
                     self.carry = True
+                    self.update_carrying_flags(goal)
                     self.goal = self.find_exit()
                     self.path = self.a_star(self.pos, self.goal)
 
@@ -651,6 +680,7 @@ class Bot(Agent):
                 if exit_in_next_pos:
                     # Interact with the SPackage without removing it
                     self.carry = False
+                    self.reset_carrying_flags()
                     if self.tasks:
                         self.goal = self.tasks.pop()[0]
                         self.path = self.a_star(self.pos, self.goal)
@@ -673,6 +703,29 @@ class Bot(Agent):
                     self.movements += 1
                     self.battery = max(0, self.battery - 1)
                     self.model.grid.move_agent(self, self.next_pos)
+            else:
+                self.find_new_task()
+
+    def find_new_task(self):
+        # Look for a new task after charging or completing a task
+        if self.model.central_system.tasks:
+            self.goal = self.model.central_system.tasks.pop(0)[0]
+            self.path = self.a_star(self.pos, self.goal)
+
+
+    def update_carrying_flags(self, package):
+        if isinstance(package, PackageA):
+            self.isCarryingA = True
+        elif isinstance(package, PackageB):
+            self.isCarryingB = True
+        elif isinstance(package, PackageC):
+            self.isCarryingC = True
+
+    def reset_carrying_flags(self):
+        self.isCarryingA = False
+        self.isCarryingB = False
+        self.isCarryingC = False
+
 
 
 class Environment(Model):
@@ -694,7 +747,7 @@ class Environment(Model):
         'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
         'WFDFDFDFFFFFFFFFFFFFFFFFFFFFFYFXFYFZFW',
         'WFFFRFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
-        'WFFFFFFFFFRFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
         'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
         'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
         'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
