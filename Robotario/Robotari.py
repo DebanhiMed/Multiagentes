@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import heapq
+from matplotlib.path import Path
 
 def load_obstacle(filename):
     data = np.loadtxt(filename, delimiter=',')
@@ -49,12 +50,10 @@ class ComplexEnvironment:
         return self.state
 
     def is_obstacle(self, pos):
-        pos = round_pos(pos)
+        pos = np.array(round_pos(pos))
         for obs in self.obstacles:
-            obs = np.array(obs)
-            x_min, x_max = np.min(obs[:, 0]), np.max(obs[:, 0])
-            y_min, y_max = np.min(obs[:, 1]), np.max(obs[:, 1])
-            if x_min <= pos[0] <= x_max and y_min <= pos[1] <= y_max:
+            polygon = Path(np.array(obs))
+            if polygon.contains_point(pos):
                 return True
         return False
 
