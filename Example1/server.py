@@ -58,10 +58,3 @@ server = mesa.visualization.ModularServer(
 )
 
 server.launch(open_browser=True)
-
-
-"""
- elif isinstance(agent, Goal):
-        return {"Shape": "rect", "Filled": "false", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
-                "Color": "#ccbeaf", "text": "📦"}
-"""
