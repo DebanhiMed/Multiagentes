@@ -8,7 +8,7 @@ def load_obstacle(filename):
     y_coords = data[1, :]
     return list(zip(x_coords, y_coords))
 
-def expand_obstacle(obstacle, expansion=0.15):
+def expand_obstacle(obstacle, expansion=0.1):
     expanded_obstacle = []
     center_x = np.mean([point[0] for point in obstacle])
     center_y = np.mean([point[1] for point in obstacle])
@@ -17,7 +17,7 @@ def expand_obstacle(obstacle, expansion=0.15):
         direction_x = x - center_x
         direction_y = y - center_y
         norm = np.sqrt(direction_x**2 + direction_y**2)
-        if norm == 0:  # Caso raro donde el punto está exactamente en el centro
+        if norm == 0:
             expanded_obstacle.append((x, y))
         else:
             expand_x = x + expansion * (direction_x / norm)
@@ -60,7 +60,7 @@ class ComplexEnvironment:
 
     def neighbors(self, pos):
         x, y = pos
-        steps = [(x + 0.1, y), (x - 0.1, y), (x, y + 0.1), (x, y - 0.1)]
+        steps = [(x + 0.05, y), (x - 0.05, y), (x, y + 0.05), (x, y - 0.05)]
         return [round_pos(step) for step in steps if self.is_within_bounds(step) and not self.is_obstacle(step)]
 
     def is_within_bounds(self, pos):
@@ -105,20 +105,6 @@ def a_star_search(env, start, goal):
     path.reverse()
     return path
 
-def plan_path(env, initial_state, goals):
-    state = env.reset(initial_state)
-    total_path = []
-
-    for goal in goals:
-        path = a_star_search(env, state, goal)
-        if not path:
-            print(f"Camino no encontrado para el objetivo {goal}.")
-            continue
-        total_path.extend(path)
-        state = goal
-
-    return total_path
-
 def execute_movement(env, initial_position, goals):
     state = initial_position
     total_path = []
@@ -128,11 +114,12 @@ def execute_movement(env, initial_position, goals):
         if not path:
             print(f"Camino no encontrado para el objetivo {goal}.")
             continue
+        if total_path:
+            path = path[1:]
         total_path.extend(path)
-        state = goal  # Actualiza el estado al último objetivo alcanzado
+        state = goal
 
     return total_path
-
 
 # Cargar obstáculos desde los archivos
 obstacle_1 = load_obstacle('CornersObs1.txt')
@@ -148,8 +135,8 @@ target_positions = list(zip(target_positions[0], target_positions[1]))
 
 # Dividir los objetivos entre los dos robots
 half = len(target_positions) // 2
-robot1_goals = target_positions[:half]
-robot2_goals = target_positions[half:]
+robot1_goals = target_positions
+robot2_goals = target_positions
 
 # Cargar posiciones iniciales de los robots
 initial_positions = load_initial_positions('InitialPositions.txt')
@@ -163,17 +150,7 @@ robot_radius = 0.08
 # Crear el entorno
 env = ComplexEnvironment(width, height, robot_radius, target_positions, obstacles)
 
-# Mover los robots a través de sus objetivos, recalculando cada vez
-total_path_robot1 = execute_movement(env, robot1_initial_position, robot1_goals)
-total_path_robot2 = execute_movement(env, robot2_initial_position, robot2_goals)
-
-# Verificar las posiciones y objetivos
-print(f"Posición inicial Robot 1: {robot1_initial_position}")
-print(f"Posiciones objetivo Robot 1: {robot1_goals}")
-print(f"Posición inicial Robot 2: {robot2_initial_position}")
-print(f"Posiciones objetivo Robot 2: {robot2_goals}")
-
-# Mover los robots a través de sus objetivos, recalculando cada vez
+# Planificar rutas para ambos robots
 total_path_robot1 = execute_movement(env, robot1_initial_position, robot1_goals)
 total_path_robot2 = execute_movement(env, robot2_initial_position, robot2_goals)
 
@@ -182,7 +159,6 @@ if not total_path_robot1:
     print("Robot 1 no pudo encontrar un camino válido.")
 if not total_path_robot2:
     print("Robot 2 no pudo encontrar un camino válido.")
-
 
 # Guardar las coordenadas de las rutas en archivos de texto
 with open('robot_path1.txt', 'w') as f1, open('robot_path2.txt', 'w') as f2:
@@ -199,7 +175,7 @@ ax.set_ylim([-2, 2])
 
 # Dibujar obstáculos
 for obs in obstacles:
-    expanded_obs = expand_obstacle(obs)  # Expansión de los obstáculos
+    expanded_obs = expand_obstacle(obs)
     expanded_obs = np.array(expanded_obs)
     ax.fill(expanded_obs[:, 0], expanded_obs[:, 1], 'r')
 
@@ -216,13 +192,11 @@ if total_path_robot2:
 ax.plot(robot1_initial_position[0], robot1_initial_position[1], 'go', markersize=10, label='Inicio Robot 1')
 ax.plot(robot2_initial_position[0], robot2_initial_position[1], 'mo', markersize=10, label='Inicio Robot 2')
 
-for target in robot1_goals:
-    ax.plot(target[0], target[1], 'bx', markersize=10, label='Objetivo Robot 1')
-for target in robot2_goals:
-    ax.plot(target[0], target[1], 'gx', markersize=10, label='Objetivo Robot 2')
+for target in target_positions:
+    ax.plot(target[0], target[1], 'kx', markersize=10, label='Objetivo')
 
 plt.legend()
-plt.title('Simulación del movimiento de dos robots con A*')
+plt.title('Simulación del Movimiento de Dos Robots con A*')
 plt.xlabel('X [m]')
 plt.ylabel('Y [m]')
 plt.show()
