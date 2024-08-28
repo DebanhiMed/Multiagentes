@@ -29,63 +29,7 @@ class QLearningAgent:
 
     def state_to_index(self, state, width):
         x, y = state
-        return int((y + 3) * width + (x + 3))  # Ajustar el offset para el índice
-
-class ComplexEnvironment:
-    def __init__(self, width, height, robot_radius, goal_states, obstacles=[]):
-        self.width = width
-        self.height = height
-        self.robot_radius = robot_radius
-        self.goal_states = goal_states
-        self.obstacles = obstacles
-        self.state = None
-        self.goal_index = 0
-
-    def reset(self):
-        self.state = (-3.0, 0.0)  # Iniciar en la primera posición inicial
-        self.goal_index = 0  # Reiniciar al primer objetivo
-        return self.state
-
-    def is_obstacle(self, pos):
-        for obs in self.obstacles:
-            x = obs[0]
-            y = obs[1]
-            if np.min(x) <= pos[0] <= np.max(x) and np.min(y) <= pos[1] <= np.max(y):
-                return True
-        return False
-
-    def step(self, action):
-        x, y = self.state
-        if action == 0:  # Arriba
-            next_state = (x, y + 0.1)
-        elif action == 1:  # Abajo
-            next_state = (x, y - 0.1)
-        elif action == 2:  # Izquierda
-            next_state = (x - 0.1, y)
-        elif action == 3:  # Derecha
-            next_state = (x + 0.1, y)
-        else:
-            next_state = self.state
-
-        if not (-3 <= next_state[0] <= 3 and -3 <= next_state[1] <= 3) or self.is_obstacle(next_state):
-            next_state = self.state
-
-        reward = -0.1  # Penalización pequeña por moverse
-
-        # Comprobar si se ha alcanzado el objetivo actual
-        if np.linalg.norm(np.array(next_state) - np.array(self.goal_states[self.goal_index])) < 0.1:
-            reward = 10
-            self.goal_index += 1  # Pasar al siguiente objetivo
-
-            if self.goal_index >= len(self.goal_states):
-                done = True  # Terminar si se alcanzaron todos los objetivos
-            else:
-                done = False
-        else:
-            done = False
-
-        self.state = next_state
-        return next_state, reward, done
+        return int(y * width + x)
 
 def train(agent, env, episodes=1000, log_interval=100):
     all_steps = []
@@ -110,7 +54,55 @@ def train(agent, env, episodes=1000, log_interval=100):
         if episode % log_interval == 0:
             print(f"Episodio {episode}/{episodes}")
 
-    return all_steps[-1]
+    return steps
+
+class ComplexEnvironment:
+    def __init__(self, width, height, robot_radius, goal_states, obstacles=[]):
+        self.width = width
+        self.height = height
+        self.robot_radius = robot_radius
+        self.goal_states = goal_states
+        self.obstacles = obstacles
+        self.state = None
+
+    def reset(self):
+        self.state = self.goal_states[0]  # Iniciar en la primera posición objetivo
+        return self.state
+
+    def is_obstacle(self, pos):
+        for obs in self.obstacles:
+            x = obs[0]
+            y = obs[1]
+            if np.min(x) <= pos[0] <= np.max(x) and np.min(y) <= pos[1] <= np.max(y):
+                return True
+        return False
+
+    def step(self, action):
+        x, y = self.state
+        if action == 0:  # Arriba
+            next_state = (x, y + 0.1)
+        elif action == 1:  # Abajo
+            next_state = (x, y - 0.1)
+        elif action == 2:  # Izquierda
+            next_state = (x - 0.1, y)
+        elif action == 3:  # Derecha
+            next_state = (x + 0.1, y)
+        else:
+            next_state = self.state
+
+        if not (0 <= next_state[0] <= self.width and 0 <= next_state[1] <= self.height) or self.is_obstacle(next_state):
+            next_state = self.state
+
+        reward = -0.1  # Penalización pequeña por moverse
+
+        if next_state in self.goal_states:
+            reward = 10
+            done = True
+        else:
+            done = False
+
+        self.state = next_state
+        return next_state, reward, done
 
 # Coordenadas de los obstáculos (manualmente ajustadas)
 obstacles = [
