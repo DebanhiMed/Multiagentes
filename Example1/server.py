@@ -3,8 +3,9 @@ from model import Environment, Bot, ShelfA, ShelfB, ShelfC, Wall, SPackage, Pack
 
 def agent_portrayal(agent):
     if isinstance(agent, Bot):
-        return {"Shape": "circle", "Filled": "false", "Color": "Cyan", "Layer": 1, "r": 0.9,
-                "text": f"{agent.battery}", "text_color": "black"}
+        return {"Shape": "circle", "Filled": "false", "Color": "Grey", "Layer": 1, "r": 0.9,
+                "text": "", "text_color": "black"}
+    #f"{agent.battery}"
     elif isinstance(agent, ShelfA):
         return {"Shape": "rect", "Filled": "true", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
                 "Color": "#FFB200", "text": "🪟"}
@@ -53,7 +54,7 @@ model_params = {
 
 server = mesa.visualization.ModularServer(
     Environment, [grid, chart_charges],
-    "Avance Bueno", model_params, 8521
+    "goats", model_params, 8521
 )
 
 server.launch(open_browser=True)
