@@ -66,8 +66,18 @@ class ComplexEnvironment:
         x, y = pos
         return -3 <= x <= 3 and -2 <= y <= 2
 
+    def has_line_of_sight(self, start, end):
+        steps = 100  # Increase for finer granularity
+        x_values = np.linspace(start[0], end[0], steps)
+        y_values = np.linspace(start[1], end[1], steps)
+        for x, y in zip(x_values, y_values):
+            if self.is_obstacle((x, y)):
+                return False
+        return True
+
 def heuristic(a, b):
-    return np.linalg.norm(np.array(a) - np.array(b))
+    # Heurística de Manhattan
+    return abs(a[0] - b[0]) + abs(a[1] - b[1])
 
 def a_star_search(env, start, goal):
     start = round_pos(start)
@@ -102,7 +112,27 @@ def a_star_search(env, start, goal):
         path.append(current)
         current = came_from[current]
     path.reverse()
+    
+    path = smooth_path(env, path)
+    
     return path
+
+def smooth_path(env, path):
+    if len(path) <= 2:
+        return path
+
+    smooth_path = [path[0]]
+    i = 0
+
+    while i < len(path) - 1:
+        j = i + 1
+        while j < len(path) and env.has_line_of_sight(path[i], path[j]):
+            j += 1
+        smooth_path.append(path[j - 1])
+        i = j - 1
+
+    return smooth_path
+
 
 def execute_movement(env, initial_position, goals):
     state = initial_position
@@ -120,7 +150,6 @@ def execute_movement(env, initial_position, goals):
 
     return total_path
 
-# Cargar obstáculos desde los archivos
 obstacle_1 = load_obstacle('CornersObs1.txt')
 obstacle_2 = load_obstacle('CornersObs2.txt')
 obstacle_3 = load_obstacle('CornersObs3.txt')
@@ -128,57 +157,47 @@ obstacle_4 = load_obstacle('CornersObs4.txt')
 
 obstacles = [obstacle_1, obstacle_2, obstacle_3, obstacle_4]
 
-# Cargar posiciones objetivo
 target_positions = np.loadtxt('TargetPositions.txt', delimiter=',')
 target_positions = list(zip(target_positions[0], target_positions[1]))
 
-# Dividir los objetivos entre los dos robots
 half = len(target_positions) // 2
 robot1_goals = target_positions
-robot2_goals = target_positions
 
-# Cargar posiciones iniciales de los robots
+robot2_goals = [(0.5, -1.3)] + target_positions  
+
 initial_positions = load_initial_positions('InitialPositions.txt')
 robot1_initial_position, robot2_initial_position = initial_positions
 
-# Parámetros del entorno
 width = 6.0
 height = 4.0
 robot_radius = 0.08
 
-# Crear el entorno
 env = ComplexEnvironment(width, height, robot_radius, target_positions, obstacles)
 
-# Planificar rutas para ambos robots
 total_path_robot1 = execute_movement(env, robot1_initial_position, robot1_goals)
 total_path_robot2 = execute_movement(env, robot2_initial_position, robot2_goals)
 
-# Verificar si se encontraron caminos
 if not total_path_robot1:
     print("Robot 1 no pudo encontrar un camino válido.")
 if not total_path_robot2:
     print("Robot 2 no pudo encontrar un camino válido.")
 
-# Guardar las coordenadas de las rutas en archivos de texto
 with open('robot_path1.txt', 'w') as f1, open('robot_path2.txt', 'w') as f2:
     for step in total_path_robot1:
         f1.write(f"{step[0]},{step[1]}\n")
     for step in total_path_robot2:
         f2.write(f"{step[0]},{step[1]}\n")
 
-# Simulación del movimiento de los robots
 fig, ax = plt.subplots()
 ax.set_aspect('equal')
 ax.set_xlim([-3, 3])
 ax.set_ylim([-2, 2])
 
-# Dibujar obstáculos
 for obs in obstacles:
     expanded_obs = expand_obstacle(obs)
     expanded_obs = np.array(expanded_obs)
     ax.fill(expanded_obs[:, 0], expanded_obs[:, 1], 'r')
 
-# Dibujar la ruta de ambos robots
 if total_path_robot1:
     total_path_robot1 = np.array(total_path_robot1)
     ax.plot(total_path_robot1[:, 0], total_path_robot1[:, 1], 'b--', marker='o', label='Robot 1')
@@ -187,7 +206,6 @@ if total_path_robot2:
     total_path_robot2 = np.array(total_path_robot2)
     ax.plot(total_path_robot2[:, 0], total_path_robot2[:, 1], 'g--', marker='x', label='Robot 2')
 
-# Dibujar posiciones iniciales y objetivos
 ax.plot(robot1_initial_position[0], robot1_initial_position[1], 'go', markersize=10, label='Inicio Robot 1')
 ax.plot(robot2_initial_position[0], robot2_initial_position[1], 'mo', markersize=10, label='Inicio Robot 2')
 
