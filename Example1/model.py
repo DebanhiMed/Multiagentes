@@ -44,20 +44,28 @@ class ShelfC(Agent):
 class TaskManager(Agent):
     def __init__(self, unique_id, model):
         super().__init__(unique_id, model)
-        self.tasks = []  # Lista de tareas pendientes
-        self.robot_statuses = {}
+        self.tasks = []
 
     def step(self):
+        self.update_tasks()
+
         # Asignar tareas a los robots libres
         for bot in self.model.schedule.agents:
             if isinstance(bot, Bot):
-                if not bot.tasks and not bot.returning_to_start:  # Si no tiene tareas y no está regresando a su posición inicial
+                if not bot.tasks and not bot.returning_to_start:  # Si el robot no tiene tareas y no está regresando
                     if self.tasks:
                         task = self.tasks.pop(0)
                         bot.getTasks(task)
 
     def add_task(self, task):
         self.tasks.append(task)
+
+    def update_tasks(self):
+        for pos in self.model.grid.coord_iter():
+            _, agents = pos
+            for agent in agents:
+                if isinstance(agent, (PackageA, PackageB, PackageC)) and not any(task[0] == agent.pos for task in self.tasks):
+                    self.add_task((agent.pos, None))
 
 class PackageA(Agent):
     def __init__(self, unique_id, model):
@@ -89,8 +97,8 @@ class Bot(Agent):
         self.carry = False
         self.tasks = []
         self.goal = None
-        self.initial_position = None  # Para almacenar la posición inicial del bot
-        self.returning_to_start = False  # Indicador de si el bot está regresando a su posición inicial
+        self.initial_position = None
+        self.returning_to_start = False
         self.isCarryingA = False
         self.isCarryingB = False
         self.isCarryingC = False
@@ -110,7 +118,6 @@ class Bot(Agent):
                 if isinstance(obj, SPackage):
                     exits.append((x, y))
         
-        # Filtrar los SPackage ocupados
         occupied_exits = []
         for bot in self.model.schedule.agents:
             if isinstance(bot, Bot) and bot.goal in exits:
@@ -119,11 +126,9 @@ class Bot(Agent):
         available_exits = [exit for exit in exits if exit not in occupied_exits]
         
         if available_exits:
-            # Si hay SPackage disponibles, seleccionar el más cercano
             available_exits.sort(key=lambda exit: self.euclidean_heuristic(self.pos, exit))
             return available_exits[0]
         else:
-            # Si no hay SPackage disponibles, seleccionar uno al azar (esto puede evitar deadlocks)
             return random.choice(exits)
 
     def a_star(self, start, goal, avoid_positions=[]):
@@ -150,7 +155,7 @@ class Bot(Agent):
             for neighbor in self.model.grid.iter_neighborhood(current, moore=False, include_center=False):
                 if self.model.grid.is_cell_empty(neighbor) or neighbor == goal:
                     if neighbor in avoid_positions:
-                        continue  # Skip this neighbor if it's in the avoid_positions list
+                        continue
                     g_new = g + 1
                     h_new = self.euclidean_heuristic(neighbor, goal)
                     f_new = g_new + h_new
@@ -177,12 +182,6 @@ class Bot(Agent):
         avoid_positions = [agent.next_pos for agent in self.model.schedule.agents if isinstance(agent, Bot) and agent.next_pos is not None]
         return self.a_star(start, goal, avoid_positions)
 
-    def avoid_collision(self):
-        for neighbor in self.model.grid.iter_neighborhood(self.pos, moore=False, include_center=False):
-            if self.model.grid.is_cell_empty(neighbor):
-                return neighbor
-        return self.pos
-
     def step(self):
         if self.path and self.goal:
             self.next_pos = self.path.pop(0)
@@ -190,7 +189,7 @@ class Bot(Agent):
             if self.detect_collision(self.next_pos):
                 self.path = self.find_alternative_path(self.pos, self.goal)
                 if not self.path:
-                    return  # No alternative path found, wait in place
+                    return  
                 self.next_pos = self.path.pop(0)
 
             self.movements += 1
@@ -201,7 +200,7 @@ class Bot(Agent):
                     self.model.grid.remove_agent(goal)
                     self.carry = True
                     self.update_carrying_flags(goal)
-                    self.goal = self.find_exit()  # Seleccionar un SPackage diferente
+                    self.goal = self.find_exit()
                     self.path = self.a_star(self.pos, self.goal)
 
             if self.carry:
@@ -209,10 +208,24 @@ class Bot(Agent):
                 if exit_in_next_pos:
                     self.carry = False
                     self.reset_carrying_flags()
-                    # Ahora que se ha entregado el paquete, establecer la posición inicial como el próximo objetivo
-                    self.goal = self.initial_position
-                    self.path = self.a_star(self.pos, self.goal)
-                    self.returning_to_start = True
+
+                    self.goal = None
+                    self.path = []
+
+                    self.model.central_system.step()  
+                    if self.tasks:
+                        self.goal = self.tasks.pop()[0]
+                        self.path = self.a_star(self.pos, self.goal)
+                        self.returning_to_start = False
+                    else:
+                        remaining_packages = any(isinstance(agent, (PackageA, PackageB, PackageC)) for _, agents in self.model.grid.coord_iter() for agent in agents)
+                        if not remaining_packages:
+                            self.goal = self.initial_position
+                            self.path = self.a_star(self.pos, self.goal)
+                            self.returning_to_start = True
+                        else:
+                            self.model.central_system.step()  
+
                 else:
                     self.model.grid.move_agent(self, self.next_pos)
             else:
@@ -336,7 +349,7 @@ class Environment(Model):
                     self.grid.place_agent(salida, (x, y))
                 elif desc[y][x] == 'R':  
                     bot = Bot(self.next_id(), self)
-                    bot.initial_position = (x, y)  # Guardar la posición inicial del bot
+                    bot.initial_position = (x, y)
                     self.grid.place_agent(bot, (x, y))
                     self.schedule.add(bot)
 
@@ -347,6 +360,7 @@ class Environment(Model):
         self.datacollector.collect(self)
         self.schedule.step()
         self.running = any([isinstance(a, Bot) for a in self.schedule.agents])
+
 
 
 
