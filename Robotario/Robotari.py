@@ -9,7 +9,7 @@ def load_obstacle(filename):
     y_coords = data[1, :]
     return list(zip(x_coords, y_coords))
 
-def expand_obstacle(obstacle, expansion=0.1):
+def expand_obstacle(obstacle, expansion=0.25):
     expanded_obstacle = []
     center_x = np.mean([point[0] for point in obstacle])
     center_y = np.mean([point[1] for point in obstacle])

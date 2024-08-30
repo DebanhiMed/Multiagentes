@@ -31,7 +31,7 @@ def load_initial_positions(filename):
     data = np.loadtxt(filename, delimiter=',')
     return list(zip(data[0, :], data[1, :]))
 
-def round_pos(pos, decimals=2):
+def round_pos(pos, decimals=3):
     if isinstance(pos, (list, tuple)) and isinstance(pos[0], (list, tuple)):
         return [tuple(round(coord, decimals) for coord in p) for p in pos]
     return tuple(round(coord, decimals) for coord in pos)
@@ -61,6 +61,7 @@ class ComplexEnvironment:
         x, y = pos
         steps = [(x + 0.05, y), (x - 0.05, y), (x, y + 0.05), (x, y - 0.05)]
         return [round_pos(step) for step in steps if self.is_within_bounds(step) and not self.is_obstacle(step)]
+
 
     def is_within_bounds(self, pos):
         x, y = pos
