@@ -102,12 +102,29 @@ class Bot(Agent):
         return np.sqrt((pos[0] - goal[0])**2 + (pos[1] - goal[1])**2)
 
     def find_exit(self):
+        exits = []
         for pos in self.model.grid.coord_iter():
             _, (x, y) = pos
             contents = self.model.grid.get_cell_list_contents([x, y])
             for obj in contents:
                 if isinstance(obj, SPackage):
-                    return (x, y)
+                    exits.append((x, y))
+        
+        # Filtrar los SPackage ocupados
+        occupied_exits = []
+        for bot in self.model.schedule.agents:
+            if isinstance(bot, Bot) and bot.goal in exits:
+                occupied_exits.append(bot.goal)
+        
+        available_exits = [exit for exit in exits if exit not in occupied_exits]
+        
+        if available_exits:
+            # Si hay SPackage disponibles, seleccionar el más cercano
+            available_exits.sort(key=lambda exit: self.euclidean_heuristic(self.pos, exit))
+            return available_exits[0]
+        else:
+            # Si no hay SPackage disponibles, seleccionar uno al azar (esto puede evitar deadlocks)
+            return random.choice(exits)
 
     def a_star(self, start, goal, avoid_positions=[]):
         open_list = []
@@ -133,7 +150,7 @@ class Bot(Agent):
             for neighbor in self.model.grid.iter_neighborhood(current, moore=False, include_center=False):
                 if self.model.grid.is_cell_empty(neighbor) or neighbor == goal:
                     if neighbor in avoid_positions:
-                        continue  # Skip this neighbor if it's en la avoid_positions list
+                        continue  # Skip this neighbor if it's in the avoid_positions list
                     g_new = g + 1
                     h_new = self.euclidean_heuristic(neighbor, goal)
                     f_new = g_new + h_new
@@ -184,7 +201,7 @@ class Bot(Agent):
                     self.model.grid.remove_agent(goal)
                     self.carry = True
                     self.update_carrying_flags(goal)
-                    self.goal = self.find_exit()
+                    self.goal = self.find_exit()  # Seleccionar un SPackage diferente
                     self.path = self.a_star(self.pos, self.goal)
 
             if self.carry:
@@ -242,8 +259,8 @@ class Environment(Model):
         self.schedule.add(self.central_system)
 
         self.desc = [
-        'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
-        'WFDFDFDFFFFFFFFFFFFFFFFFFFFFFYZXXYYYYW',
+        'WWDWDWDWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
+        'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFYZXXYYYYW',
         'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
         'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
         'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
@@ -262,7 +279,7 @@ class Environment(Model):
         'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
         'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
         'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
-        'WFFFFFFFFFFFFFFFRRRRRRFFFFFFFFFFFFFFFW',
+        'WFRFRFRFRFRFFFFFFFFFFFFFFFFFFFFFFFFFFW',
         'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
     ]
 
@@ -330,6 +347,10 @@ class Environment(Model):
         self.datacollector.collect(self)
         self.schedule.step()
         self.running = any([isinstance(a, Bot) for a in self.schedule.agents])
+
+
+
+
 
 """
 
