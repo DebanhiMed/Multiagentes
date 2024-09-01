@@ -121,7 +121,7 @@ class Wall(Agent):
         super().__init__(unique_id, model)
 
 class Bot(Agent):
-    def __init__(self, unique_id, model):
+    def __init__(self, unique_id, model, initial_position):
         super().__init__(unique_id, model)
         self.next_pos = None
         self.movements = 0
@@ -130,14 +130,17 @@ class Bot(Agent):
         self.carry = False
         self.tasks = []
         self.goal = None
-        self.initial_position = None
+        self.initial_position = initial_position
         self.returning_to_start = False
         self.isCarryingA = False
         self.isCarryingB = False
         self.isCarryingC = False
-        self.history = {"id": unique_id, "picked_packages": [], "positions": []}  # Asegúrate de que "picked_packages" esté incluido aquí
-
-
+        self.history = {
+            "spawnPosition": {"x": initial_position[0], "y": initial_position[1]},
+            "path": [],
+            "deliveryPoints": [],
+            "pickupPoints": []
+        }
 
     def getTasks(self, task):
         self.tasks.append(task)
@@ -228,7 +231,7 @@ class Bot(Agent):
             return alternative_path
 
     def step(self):
-        self.history["positions"].append(self.pos)
+        self.history["path"].append({"x": self.pos[0], "y": self.pos[1]})
 
         if self.path and self.goal:
             self.next_pos = self.path.pop(0)
@@ -248,6 +251,9 @@ class Bot(Agent):
                     self.carry = True
                     self.update_carrying_flags(goal)
 
+                    # Register pickup point
+                    self.history["pickupPoints"].append({"x": self.next_pos[0], "y": self.next_pos[1]})
+
                     self.goal = self.find_exit()
                     self.path = self.a_star(self.pos, self.goal)
 
@@ -256,6 +262,9 @@ class Bot(Agent):
                 if exit_in_next_pos:
                     self.carry = False
                     self.reset_carrying_flags()
+
+                    # Register delivery point (right to SPackage)
+                    self.history["deliveryPoints"].append({"x": self.next_pos[0] + 1, "y": self.next_pos[1]})
 
                     self.goal = None
                     self.path = []
@@ -273,7 +282,6 @@ class Bot(Agent):
                             self.returning_to_start = True
                         else:
                             self.model.central_system.step()  
-
                 else:
                     self.model.grid.move_agent(self, self.next_pos)
             else:
@@ -292,24 +300,18 @@ class Bot(Agent):
                 self.path = self.a_star(self.pos, self.goal)
 
     def update_carrying_flags(self, package):
-        package_type = 0
         if isinstance(package, PackageA):
             self.isCarryingA = True
-            package_type = 1
         elif isinstance(package, PackageB):
             self.isCarryingB = True
-            package_type = 2
         elif isinstance(package, PackageC):
             self.isCarryingC = True
-            package_type = 3
-        
-        # Guardar el tipo de paquete en la historia
-        self.history["picked_packages"].append(package_type)
 
     def reset_carrying_flags(self):
         self.isCarryingA = False
         self.isCarryingB = False
         self.isCarryingC = False
+
 
 class Environment(Model):
     def __init__(self, M: int, N: int, num_agents: int = 5, num_goals: int = 1, obstacle_portion: float = 0.3, mode_start_pos='Random'):
@@ -365,8 +367,8 @@ class Environment(Model):
         goalPos = (0, 0)
         box_position = []
 
-        N = self.grid.height  # Rows
-        M = self.grid.width  # Columns
+        N = self.grid.height 
+        M = self.grid.width
 
         for pos in self.grid.coord_iter():
             _, (x, y) = pos
@@ -409,7 +411,7 @@ class Environment(Model):
                     self.grid.place_agent(entrada, (x, y))
                     self.schedule.add(entrada)
                 elif desc[y][x] == 'R':  
-                    bot = Bot(bot_id, self)
+                    bot = Bot(bot_id, self, (x, y))
                     bot.initial_position = (x, y)
                     self.grid.place_agent(bot, (x, y))
                     self.schedule.add(bot)
@@ -419,19 +421,19 @@ class Environment(Model):
             self.central_system.add_task((box_pos, goalPos))
 
     def step(self):
-            self.datacollector.collect(self)
-            self.schedule.step()
+        self.datacollector.collect(self)
+        self.schedule.step()
 
-            # Save the current state of all bots to JSON
-            bots_data = []
-            for agent in self.schedule.agents:
-                if isinstance(agent, Bot):
-                    bots_data.append(agent.history)
+        # Save the current state of all bots to JSON
+        robots_data = {"robots": []}
+        for agent in self.schedule.agents:
+            if isinstance(agent, Bot):
+                robots_data["robots"].append(agent.history)
 
-            with open("resultados_simulacion.json", "w") as json_file:
-                json.dump(bots_data, json_file, indent=4)
+        with open("resultados_simulacion.json", "w") as json_file:
+            json.dump(robots_data, json_file, indent=4)
 
-            self.running = any([isinstance(a, Bot) for a in self.schedule.agents])
+        self.running = any([isinstance(a, Bot) for a in self.schedule.agents])
 
 
 
