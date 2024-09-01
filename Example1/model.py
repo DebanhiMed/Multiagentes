@@ -1,5 +1,6 @@
 import numpy as np
 import random
+import json
 from mesa import Model, Agent
 from mesa.space import SingleGrid
 from mesa.time import SimultaneousActivation
@@ -134,6 +135,9 @@ class Bot(Agent):
         self.isCarryingA = False
         self.isCarryingB = False
         self.isCarryingC = False
+        self.history = {"id": unique_id, "picked_packages": [], "positions": []}  # Asegúrate de que "picked_packages" esté incluido aquí
+
+
 
     def getTasks(self, task):
         self.tasks.append(task)
@@ -212,9 +216,20 @@ class Bot(Agent):
 
     def find_alternative_path(self, start, goal):
         avoid_positions = [agent.next_pos for agent in self.model.schedule.agents if isinstance(agent, Bot) and agent.next_pos is not None]
-        return self.a_star(start, goal, avoid_positions)
+        alternative_path = self.a_star(start, goal, avoid_positions)
+        
+        if not alternative_path and self.retries < 3:
+            # Si no se encuentra un camino alternativo, reintentar con diferentes posiciones evitadas
+            self.retries += 1
+            avoid_positions.extend([agent.pos for agent in self.model.schedule.agents if isinstance(agent, Bot)])
+            return self.a_star(start, goal, avoid_positions)
+        else:
+            self.retries = 0
+            return alternative_path
 
     def step(self):
+        self.history["positions"].append(self.pos)
+
         if self.path and self.goal:
             self.next_pos = self.path.pop(0)
 
@@ -232,6 +247,7 @@ class Bot(Agent):
                     self.model.grid.remove_agent(goal)
                     self.carry = True
                     self.update_carrying_flags(goal)
+
                     self.goal = self.find_exit()
                     self.path = self.a_star(self.pos, self.goal)
 
@@ -276,12 +292,19 @@ class Bot(Agent):
                 self.path = self.a_star(self.pos, self.goal)
 
     def update_carrying_flags(self, package):
+        package_type = 0
         if isinstance(package, PackageA):
             self.isCarryingA = True
+            package_type = 1
         elif isinstance(package, PackageB):
             self.isCarryingB = True
+            package_type = 2
         elif isinstance(package, PackageC):
             self.isCarryingC = True
+            package_type = 3
+        
+        # Guardar el tipo de paquete en la historia
+        self.history["picked_packages"].append(package_type)
 
     def reset_carrying_flags(self):
         self.isCarryingA = False
@@ -302,6 +325,8 @@ class Environment(Model):
 
         self.central_system = TaskManager(0, self)
         self.schedule.add(self.central_system)
+
+        bot_id = 1
 
         self.desc = [
         'WWWWWWWWWWWWWWWWWWWWWWWEWWEWWEWWEWWEWW',
@@ -328,7 +353,7 @@ class Environment(Model):
         'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
     ]
 
-        self._manual_placement(self.desc)
+        self._manual_placement(self.desc, bot_id)
 
         self.datacollector = DataCollector(
             model_reporters={
@@ -336,7 +361,7 @@ class Environment(Model):
             }
         )
 
-    def _manual_placement(self, desc):
+    def _manual_placement(self, desc, bot_id):
         goalPos = (0, 0)
         box_position = []
 
@@ -384,18 +409,31 @@ class Environment(Model):
                     self.grid.place_agent(entrada, (x, y))
                     self.schedule.add(entrada)
                 elif desc[y][x] == 'R':  
-                    bot = Bot(self.next_id(), self)
+                    bot = Bot(bot_id, self)
                     bot.initial_position = (x, y)
                     self.grid.place_agent(bot, (x, y))
                     self.schedule.add(bot)
+                    bot_id += 1
 
         for box_pos in box_position:
             self.central_system.add_task((box_pos, goalPos))
 
     def step(self):
-        self.datacollector.collect(self)
-        self.schedule.step()
-        self.running = any([isinstance(a, Bot) for a in self.schedule.agents])
+            self.datacollector.collect(self)
+            self.schedule.step()
+
+            # Save the current state of all bots to JSON
+            bots_data = []
+            for agent in self.schedule.agents:
+                if isinstance(agent, Bot):
+                    bots_data.append(agent.history)
+
+            with open("resultados_simulacion.json", "w") as json_file:
+                json.dump(bots_data, json_file, indent=4)
+
+            self.running = any([isinstance(a, Bot) for a in self.schedule.agents])
+
+
 
 
 

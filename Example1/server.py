@@ -5,7 +5,6 @@ def agent_portrayal(agent):
     if isinstance(agent, Bot):
         return {"Shape": "circle", "Filled": "false", "Color": "Grey", "Layer": 1, "r": 0.9,
                 "text": "", "text_color": "black"}
-    #f"{agent.battery}"
     elif isinstance(agent, ShelfA):
         return {"Shape": "rect", "Filled": "true", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
                 "Color": "#FFB200", "text": "🪟"}
@@ -55,9 +54,20 @@ model_params = {
     "N": 22,
 }
 
+# Inicializar el servidor y el modelo
 server = mesa.visualization.ModularServer(
     Environment, [grid, chart_charges],
     "goats", model_params, 8521
 )
 
+# Lanzar el servidor y la simulación
 server.launch(open_browser=True)
+
+
+# Ejecutar la simulación y guardar los datos al finalizar
+model = server.model
+while model.running:
+    model.step()
+
+# Guardar los datos al finalizar la simulación
+model.save_data_to_json("resultados_simulacion.json")
