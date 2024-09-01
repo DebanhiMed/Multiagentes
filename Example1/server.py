@@ -1,5 +1,5 @@
 import mesa
-from model import Environment, Bot, ShelfA, ShelfB, ShelfC, Wall, SPackage, PackageA, PackageB, PackageC
+from model import Environment, Bot, ShelfA, ShelfB, ShelfC, Wall, SPackage, PackageA, PackageB, PackageC, EPackage
 
 def agent_portrayal(agent):
     if isinstance(agent, Bot):
@@ -30,6 +30,9 @@ def agent_portrayal(agent):
     elif isinstance(agent, SPackage):
         return {"Shape": "rect", "Filled": "true", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
                 "Color": "#ccbeaf", "text": "🚚"}
+    elif isinstance(agent, EPackage):
+        return {"Shape": "rect", "Filled": "true", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
+                "Color": "#ccbeff", "text": "🚛"}
     else:
         return {"Shape": "rect", "Filled": "true", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
                 "Color": "white", "text": ""}

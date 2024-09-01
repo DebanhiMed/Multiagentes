@@ -83,6 +83,38 @@ class SPackage(Agent):
     def __init__(self, unique_id, model):
         super().__init__(unique_id, model)
 
+class EPackage(Agent):
+    def __init__(self, unique_id, model):
+        super().__init__(unique_id, model)
+        self.spawn_directions = [(0, 1), (1, 0), (0, -1), (-1, 0)]  # Right, Down, Left, Up
+        self.current_direction = 0  # Start facing right
+        self.timer = random.randint(20, 30)  # Temporizador para controlar el spawn de paquetes
+
+    def step(self):
+        # Calcular la posición frente al agente
+        direction = self.spawn_directions[self.current_direction]
+        spawn_position = (self.pos[0] + direction[0], self.pos[1] + direction[1])
+
+        # Verificar si la posición de spawn está vacía
+        if not self.model.grid.is_cell_empty(spawn_position):
+            # Hay una caja en frente, no disminuir el temporizador
+            print(f"Posición {spawn_position} no está vacía. Timer no disminuye.")
+        else:
+            self.timer -= 1
+            print(f"Posición {spawn_position} está vacía. Timer disminuye a {self.timer}.")
+
+        # Solo generar un paquete si el temporizador llega a cero y la posición está vacía
+        if self.timer <= 0 and self.model.grid.is_cell_empty(spawn_position):
+            # Seleccionar aleatoriamente el tipo de paquete
+            package_type = random.choice([PackageA, PackageB, PackageC])
+            new_package = package_type(self.model.next_id(), self.model)
+            self.model.grid.place_agent(new_package, spawn_position)
+            self.model.central_system.add_task((spawn_position, None))
+            print(f"Paquete generado en {spawn_position} por EPackage {self.unique_id}")
+
+            self.timer = random.randint(20, 30)
+
+
 class Wall(Agent):
     def __init__(self, unique_id, model):
         super().__init__(unique_id, model)
@@ -272,15 +304,15 @@ class Environment(Model):
         self.schedule.add(self.central_system)
 
         self.desc = [
-        'WWDWDWDWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
-        'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFYZXXYYYYW',
+        'WWWWWWWWWWWWWWWWWWWWWWWEWWEWWEWWEWWEWW',
+        'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'DFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
         'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
         'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'DFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
         'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
         'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
-        'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
-        'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
-        'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'DFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
         'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
         'WFFFFFFFCCFFFFFFFFBBFFFFFFFFAAFFFFFFFW',
         'WFFFFFFFCCFFFFFFFFBBFFFFFFFFAAFFFFFFFW',
@@ -347,6 +379,10 @@ class Environment(Model):
                 elif desc[y][x] == 'D':  
                     salida = SPackage(self.next_id(), self)
                     self.grid.place_agent(salida, (x, y))
+                elif desc[y][x] == 'E':  
+                    entrada = EPackage(self.next_id(), self)
+                    self.grid.place_agent(entrada, (x, y))
+                    self.schedule.add(entrada)
                 elif desc[y][x] == 'R':  
                     bot = Bot(self.next_id(), self)
                     bot.initial_position = (x, y)
