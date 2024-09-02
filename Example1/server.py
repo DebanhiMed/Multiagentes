@@ -63,7 +63,6 @@ server = mesa.visualization.ModularServer(
 # Lanzar el servidor y la simulación
 server.launch(open_browser=True)
 
-
 # Ejecutar la simulación y guardar los datos al finalizar
 model = server.model
 while model.running:

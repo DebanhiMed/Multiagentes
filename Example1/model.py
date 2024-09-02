@@ -148,27 +148,21 @@ class Bot(Agent):
     def euclidean_heuristic(self, pos, goal):
         return np.sqrt((pos[0] - goal[0])**2 + (pos[1] - goal[1])**2)
 
-    def find_exit(self):
-        exits = []
+    def find_shelf(self, package_type):
+        shelf_type = ShelfA if package_type == 1 else ShelfB if package_type == 2 else ShelfC
+        shelves = []
         for pos in self.model.grid.coord_iter():
             _, (x, y) = pos
             contents = self.model.grid.get_cell_list_contents([x, y])
             for obj in contents:
-                if isinstance(obj, SPackage):
-                    exits.append((x, y))
+                if isinstance(obj, shelf_type) and obj.has_capacity():
+                    shelves.append((x, y))
         
-        occupied_exits = []
-        for bot in self.model.schedule.agents:
-            if isinstance(bot, Bot) and bot.goal in exits:
-                occupied_exits.append(bot.goal)
-        
-        available_exits = [exit for exit in exits if exit not in occupied_exits]
-        
-        if available_exits:
-            available_exits.sort(key=lambda exit: self.euclidean_heuristic(self.pos, exit))
-            return available_exits[0]
+        if shelves:
+            shelves.sort(key=lambda shelf: self.euclidean_heuristic(self.pos, shelf))
+            return shelves[0]
         else:
-            return random.choice(exits)
+            return None
 
     def a_star(self, start, goal, avoid_positions=[]):
         open_list = []
@@ -197,7 +191,7 @@ class Bot(Agent):
                         continue
                     g_new = g + 1
                     h_new = self.euclidean_heuristic(neighbor, goal)
-                    f_new = g_new + h_new
+                    f_new = g_new + hnew
 
                     if any(neighbor == c for f, g, c, p in closed_list):
                         continue
@@ -229,6 +223,13 @@ class Bot(Agent):
         else:
             self.retries = 0
             return alternative_path
+        
+    def find_adjacent_empty_cell(self, target_pos):
+        neighbors = self.model.grid.get_neighborhood(target_pos, moore=False, include_center=False)
+        for neighbor in neighbors:
+            if self.model.grid.is_cell_empty(neighbor):
+                return neighbor
+        return None
 
     def step(self):
         self.history["path"].append({"x": self.pos[0], "y": self.pos[1]})
@@ -254,39 +255,75 @@ class Bot(Agent):
                     # Register pickup point
                     self.history["pickupPoints"].append({"x": self.next_pos[0], "y": self.next_pos[1]})
 
-                    self.goal = self.find_exit()
+                    # Determine the package type to pass to find_shelf
+                    if isinstance(goal, PackageA):
+                        package_type = 1
+                    elif isinstance(goal, PackageB):
+                        package_type = 2
+                    elif isinstance(goal, PackageC):
+                        package_type = 3
+
+                    self.goal = self.find_shelf(package_type)  # Pass package_type to find_shelf
                     self.path = self.a_star(self.pos, self.goal)
 
-            if self.carry:
-                exit_in_next_pos = [agent for agent in self.model.grid.get_cell_list_contents([self.next_pos]) if isinstance(agent, SPackage)]
-                if exit_in_next_pos:
-                    self.carry = False
-                    self.reset_carrying_flags()
-
-                    # Register delivery point (right to SPackage)
-                    self.history["deliveryPoints"].append({"x": self.next_pos[0] + 1, "y": self.next_pos[1]})
-
-                    self.goal = None
-                    self.path = []
-
-                    self.model.central_system.step()  
-                    if self.tasks:
-                        self.goal = self.tasks.pop()[0]
-                        self.path = self.a_star(self.pos, self.goal)
-                        self.returning_to_start = False
-                    else:
-                        remaining_packages = any(isinstance(agent, (PackageA, PackageB, PackageC)) for _, agents in self.model.grid.coord_iter() for agent in agents)
-                        if not remaining_packages:
-                            self.goal = self.initial_position
-                            self.path = self.a_star(self.pos, self.goal)
-                            self.returning_to_start = True
-                        else:
-                            self.model.central_system.step()  
+        if self.carry:
+            # Check if the robot is adjacent to the correct shelf
+            shelf_in_next_pos = self.model.grid.get_cell_list_contents([self.next_pos])
+            if shelf_in_next_pos and isinstance(shelf_in_next_pos[0], (ShelfA, ShelfB, ShelfC)):
+                # Try to find an adjacent empty cell
+                empty_cell = self.find_adjacent_empty_cell(self.next_pos)
+                if empty_cell:
+                    # Move to the empty cell and deliver the package
+                    self.model.grid.move_agent(self, empty_cell)
+                    self.next_pos = empty_cell
                 else:
-                    self.model.grid.move_agent(self, self.next_pos)
+                    # No adjacent empty cell, robot should wait or find another path
+                    return
+
+            shelf_in_current_pos = self.model.grid.get_cell_list_contents([self.pos])
+            if shelf_in_current_pos and isinstance(shelf_in_current_pos[0], (ShelfA, ShelfB, ShelfC)):
+                # If robot is now next to the shelf, deliver the package
+                shelf = shelf_in_current_pos[0]
+                if isinstance(shelf, ShelfA) and self.isCarryingA and shelf.has_capacity():
+                    shelf.decrement_capacity()
+                    self.isCarryingA = False
+                    self.carry = False
+                    self.history["deliveryPoints"].append({"x": self.pos[0], "y": self.pos[1]})
+                elif isinstance(shelf, ShelfB) and self.isCarryingB and shelf.has_capacity():
+                    shelf.decrement_capacity()
+                    self.isCarryingB = False
+                    self.carry = False
+                    self.history["deliveryPoints"].append({"x": self.pos[0], "y": self.pos[1]})
+                elif isinstance(shelf, ShelfC) and self.isCarryingC and shelf.has_capacity():
+                    shelf.decrement_capacity()
+                    self.isCarryingC = False
+                    self.carry = False
+                    self.history["deliveryPoints"].append({"x": self.pos[0], "y": self.pos[1]})
+                else:
+                    return
+
+                self.goal = None
+                self.path = []
+                self.model.central_system.step()  
+
+                if self.tasks:
+                    self.goal = self.tasks.pop()[0]
+                    self.path = self.a_star(self.pos, self.goal)
+                    self.returning_to_start = False
+                else:
+                    remaining_packages = any(isinstance(agent, (PackageA, PackageB, PackageC)) for _, agents in self.model.grid.coord_iter() for agent in agents)
+                    if not remaining_packages:
+                        self.goal = self.initial_position
+                        self.path = self.a_star(self.pos, self.goal)
+                        self.returning_to_start = True
+                    else:
+                        self.model.central_system.step()
             else:
                 self.model.grid.move_agent(self, self.next_pos)
+        else:
+            self.model.grid.move_agent(self, self.next_pos)
 
+        # Ensure this elif block is properly aligned
         elif self.goal is None and not self.path:
             if self.tasks:
                 self.goal = self.tasks.pop()[0]
@@ -295,9 +332,18 @@ class Bot(Agent):
                     self.next_pos = self.path.pop(0)
                     self.movements += 1
                     self.model.grid.move_agent(self, self.next_pos)
-            elif self.returning_to_start:
+            elif self.returning_to_start:  # This should not be nested inside the above if block
                 self.goal = self.initial_position
                 self.path = self.a_star(self.pos, self.goal)
+                if self.path:  # Ensure there is a valid path
+                    self.next_pos = self.path.pop(0)
+                    self.movements += 1
+                    self.model.grid.move_agent(self, self.next_pos)
+                else:
+                    return
+            else:
+                return
+
 
     def update_carrying_flags(self, package):
         if isinstance(package, PackageA):
@@ -311,6 +357,7 @@ class Bot(Agent):
         self.isCarryingA = False
         self.isCarryingB = False
         self.isCarryingC = False
+
 
 
 class Environment(Model):
@@ -434,12 +481,6 @@ class Environment(Model):
             json.dump(robots_data, json_file, indent=4)
 
         self.running = any([isinstance(a, Bot) for a in self.schedule.agents])
-
-
-
-
-
-
 
 
 """
