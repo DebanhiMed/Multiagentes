@@ -50,13 +50,16 @@ class TaskManager(Agent):
     def step(self):
         self.update_tasks()
 
-        # Asignar tareas a los robots libres
+        # Asignar tareas a los robots libres en cada step
         for bot in self.model.schedule.agents:
-            if isinstance(bot, Bot):
-                if not bot.tasks and not bot.returning_to_start:
-                    if self.tasks:
-                        task = self.tasks.pop(0)
-                        bot.getTasks(task)
+            if isinstance(bot, Bot) and not bot.tasks and not bot.carry and not bot.returning_to_start:
+                if self.tasks:
+                    task = self.tasks.pop(0)
+                    bot.getTasks(task)
+                    bot.goal = task[0]
+                    bot.path = bot.a_star(bot.pos, bot.goal)
+                    print(f"Robot {bot.unique_id} recibió un nuevo task hacia {bot.goal}")
+
 
     def add_task(self, task):
         self.tasks.append(task)
@@ -155,6 +158,18 @@ class Bot(Agent):
         else:
             return None
 
+        
+    def find_alternative_path(self, start, goal):
+        avoid_positions = [agent.next_pos for agent in self.model.schedule.agents if isinstance(agent, Bot) and agent.next_pos is not None]
+        alternative_path = self.a_star(start, goal, avoid_positions)
+        
+        if not alternative_path:
+            # Si no se encuentra un camino alternativo, reintentar ignorando las posiciones a evitar
+            alternative_path = self.a_star(start, goal)
+        
+        return alternative_path
+
+
     def a_star(self, start, goal, avoid_positions=[]):
         open_list = []
         closed_list = set()
@@ -250,18 +265,12 @@ class Bot(Agent):
                     self.path = self.a_star(self.pos, self.goal)
 
         if self.carry:
-            shelf_in_next_pos = self.model.grid.get_cell_list_contents([self.next_pos])
-            if shelf_in_next_pos and isinstance(shelf_in_next_pos[0], (ShelfA, ShelfB, ShelfC)):
-                empty_cell = self.find_adjacent_empty_cell(self.next_pos)
-                if empty_cell:
-                    self.model.grid.move_agent(self, empty_cell)
-                    self.next_pos = empty_cell
-                else:
-                    return
+            shelf_pos = [(self.pos[0] + dx, self.pos[1] + dy) for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]]
+            shelf_in_adjacent_pos = [pos for pos in shelf_pos if any(isinstance(agent, (ShelfA, ShelfB, ShelfC)) for agent in self.model.grid.get_cell_list_contents([pos]))]
 
-            shelf_in_current_pos = self.model.grid.get_cell_list_contents([self.pos])
-            if shelf_in_current_pos and isinstance(shelf_in_current_pos[0], (ShelfA, ShelfB, ShelfC)):
-                shelf = shelf_in_current_pos[0]
+            if shelf_in_adjacent_pos:
+                shelf = next(agent for pos in shelf_in_adjacent_pos for agent in self.model.grid.get_cell_list_contents([pos]) if isinstance(agent, (ShelfA, ShelfB, ShelfC)))
+
                 if isinstance(shelf, ShelfA) and self.isCarryingA and shelf.has_capacity():
                     shelf.decrement_capacity()
                     self.isCarryingA = False
@@ -282,19 +291,8 @@ class Bot(Agent):
                 self.path = []
                 self.reset_carrying_flags()
 
+                # Revisar si hay más paquetes y asignar tareas
                 self.model.central_system.step()
-                if self.tasks:
-                    self.goal = self.tasks.pop()[0]
-                    self.path = self.a_star(self.pos, self.goal)
-                    self.returning_to_start = False
-                else:
-                    remaining_packages = any(isinstance(agent, (PackageA, PackageB, PackageC)) for _, agents in self.model.grid.coord_iter() for agent in agents)
-                    if not remaining_packages:
-                        self.goal = self.initial_position
-                        self.path = self.a_star(self.pos, self.goal)
-                        self.returning_to_start = True
-                    else:
-                        self.model.central_system.step()
             else:
                 self.model.grid.move_agent(self, self.next_pos)
         elif self.goal is None and not self.path:
@@ -368,7 +366,7 @@ class Environment(Model):
         'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
         'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
         'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
-        'WFRFRFRFRFRFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'WFRFFRFFRFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
         'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
     ]
 
@@ -424,7 +422,7 @@ class Environment(Model):
                     salida = SPackage(self.next_id(), self)
                     self.grid.place_agent(salida, (x, y))
                 elif desc[y][x] == 'E':  
-                    entrada = EPackage (self.next_id(), self)
+                    entrada = EPackage(self.next_id(), self)
                     self.grid.place_agent(entrada, (x, y))
                     self.schedule.add(entrada)
                 elif desc[y][x] == 'R':  
