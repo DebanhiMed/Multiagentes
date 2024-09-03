@@ -10,6 +10,7 @@ class ShelfA(Agent):
     def __init__(self, unique_id, model, capacity=3):
         super().__init__(unique_id, model)
         self.capacity = capacity
+        self.is_full = False
 
     def has_capacity(self):
         return self.capacity > 0
@@ -17,11 +18,20 @@ class ShelfA(Agent):
     def decrement_capacity(self):
         if self.capacity > 0:
             self.capacity -= 1
+            if self.capacity == 0:
+                self.is_full = True  # Mark the shelf as full when capacity reaches 0
+
+    def increment_capacity(self):
+        if self.capacity < 3:
+            self.capacity += 1
+            if self.is_full and self.capacity > 0:
+                self.is_full = False  # Mark the shelf as not full when capacity is increased
 
 class ShelfB(Agent):
     def __init__(self, unique_id, model, capacity=3):
         super().__init__(unique_id, model)
         self.capacity = capacity
+        self.is_full = False
 
     def has_capacity(self):
         return self.capacity > 0
@@ -29,11 +39,20 @@ class ShelfB(Agent):
     def decrement_capacity(self):
         if self.capacity > 0:
             self.capacity -= 1
+            if self.capacity == 0:
+                self.is_full = True  # Mark the shelf as full when capacity reaches 0
+
+    def increment_capacity(self):
+        if self.capacity < 3:
+            self.capacity += 1
+            if self.is_full and self.capacity > 0:
+                self.is_full = False  # Mark the shelf as not full when capacity is increased
 
 class ShelfC(Agent):
     def __init__(self, unique_id, model, capacity=3):
         super().__init__(unique_id, model)
         self.capacity = capacity
+        self.is_full = False
 
     def has_capacity(self):
         return self.capacity > 0
@@ -41,6 +60,15 @@ class ShelfC(Agent):
     def decrement_capacity(self):
         if self.capacity > 0:
             self.capacity -= 1
+            if self.capacity == 0:
+                self.is_full = True  # Mark the shelf as full when capacity reaches 0
+
+    def increment_capacity(self):
+        if self.capacity < 3:
+            self.capacity += 1
+            if self.is_full and self.capacity > 0:
+                self.is_full = False  # Mark the shelf as not full when capacity is increased
+
 
 class TaskManager(Agent):
     def __init__(self, unique_id, model):
@@ -71,6 +99,7 @@ class TaskManager(Agent):
                 if isinstance(agent, (PackageA, PackageB, PackageC)) and not any(task[0] == agent.pos for task in self.tasks):
                     self.add_task((agent.pos, None))
 
+
 class PackageA(Agent):
     def __init__(self, unique_id, model):
         super().__init__(unique_id, model)
@@ -92,7 +121,7 @@ class EPackage(Agent):
         super().__init__(unique_id, model)
         self.spawn_directions = [(0, 1), (1, 0), (0, -1), (-1, 0)]  # Right, Down, Left, Up
         self.current_direction = 0  # Start facing right
-        self.timer = random.randint(20, 30)  # Temporizador para controlar el spawn de paquetes
+        self.timer = random.randint(50, 100)  # Temporizador para controlar el spawn de paquetes
 
     def step(self):
         direction = self.spawn_directions[self.current_direction]
@@ -108,7 +137,7 @@ class EPackage(Agent):
             new_package = package_type(self.model.next_id(), self.model)
             self.model.grid.place_agent(new_package, spawn_position)
             self.model.central_system.add_task((spawn_position, None))
-            self.timer = random.randint(20, 30)
+            self.timer = random.randint(1, 1)
 
 class Wall(Agent):
     def __init__(self, unique_id, model):
@@ -141,23 +170,6 @@ class Bot(Agent):
 
     def euclidean_heuristic(self, pos, goal):
         return np.sqrt((pos[0] - goal[0])**2 + (pos[1] - goal[1])**2)
-
-    def find_shelf(self, package_type):
-        shelf_type = ShelfA if package_type == 1 else ShelfB if package_type == 2 else ShelfC
-        shelves = []
-        for pos in self.model.grid.coord_iter():
-            _, (x, y) = pos
-            contents = self.model.grid.get_cell_list_contents([x, y])
-            for obj in contents:
-                if isinstance(obj, shelf_type) and obj.has_capacity():
-                    shelves.append((x, y))
-        
-        if shelves:
-            shelves.sort(key=lambda shelf: self.euclidean_heuristic(self.pos, shelf))
-            return shelves[0]
-        else:
-            return None
-
         
     def find_alternative_path(self, start, goal):
         avoid_positions = [agent.next_pos for agent in self.model.schedule.agents if isinstance(agent, Bot) and agent.next_pos is not None]
@@ -224,6 +236,26 @@ class Bot(Agent):
                 return neighbor
         return None
 
+    def find_shelf(self, package_type):
+        shelf_type = ShelfA if package_type == 1 else ShelfB if package_type == 2 else ShelfC
+        shelves = []
+        assigned_shelves = set(bot.goal for bot in self.model.schedule.agents if isinstance(bot, Bot) and bot.carry)
+
+        for pos in self.model.grid.coord_iter():
+            _, (x, y) = pos
+            contents = self.model.grid.get_cell_list_contents([x, y])
+            for obj in contents:
+                if isinstance(obj, shelf_type) and not obj.is_full and obj.has_capacity() and (x, y) not in assigned_shelves:
+                    shelves.append((x, y))
+        
+        if shelves:
+            shelves.sort(key=lambda shelf: self.euclidean_heuristic(self.pos, shelf))
+            return shelves[0]
+        else:
+            return None
+
+
+
     def step(self):
         self.history["path"].append({"x": self.pos[0], "y": self.pos[1]})
 
@@ -266,19 +298,25 @@ class Bot(Agent):
 
         if self.carry:
             shelf_pos = [(self.pos[0] + dx, self.pos[1] + dy) for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]]
-            shelf_in_adjacent_pos = [pos for pos in shelf_pos if any(isinstance(agent, (ShelfA, ShelfB, ShelfC)) for agent in self.model.grid.get_cell_list_contents([pos]))]
+            shelf_in_adjacent_pos = [pos for pos in shelf_pos if any(isinstance(agent, (ShelfA, ShelfB, ShelfC)) and not agent.is_full for agent in self.model.grid.get_cell_list_contents([pos]))]
 
             if shelf_in_adjacent_pos:
-                shelf = next(agent for pos in shelf_in_adjacent_pos for agent in self.model.grid.get_cell_list_contents([pos]) if isinstance(agent, (ShelfA, ShelfB, ShelfC)))
+                shelf = next(agent for pos in shelf_in_adjacent_pos for agent in self.model.grid.get_cell_list_contents([pos]) if isinstance(agent, (ShelfA, ShelfB, ShelfC)) and not agent.is_full)
 
                 if isinstance(shelf, ShelfA) and self.isCarryingA and shelf.has_capacity():
                     shelf.decrement_capacity()
+                    if not shelf.has_capacity():
+                        shelf.is_full = True
                     self.isCarryingA = False
                 elif isinstance(shelf, ShelfB) and self.isCarryingB and shelf.has_capacity():
                     shelf.decrement_capacity()
+                    if not shelf.has_capacity():
+                        shelf.is_full = True
                     self.isCarryingB = False
                 elif isinstance(shelf, ShelfC) and self.isCarryingC and shelf.has_capacity():
                     shelf.decrement_capacity()
+                    if not shelf.has_capacity():
+                        shelf.is_full = True
                     self.isCarryingC = False
                 else:
                     return
@@ -315,6 +353,9 @@ class Bot(Agent):
         else:
             self.model.grid.move_agent(self, self.next_pos)
 
+
+
+
     def update_carrying_flags(self, package):
         if isinstance(package, PackageA):
             self.isCarryingA = True
@@ -343,10 +384,13 @@ class Environment(Model):
         self.central_system = TaskManager(0, self)
         self.schedule.add(self.central_system)
 
+        # Almacenar los estantes llenos
+        self.full_shelves = set()
+
         bot_id = 1
 
         self.desc = [
-        'WWWWWWWWWWWWWWWWWWWWWWWEWWEWWEWWEWWEWW',
+        'WWWWWWWWWWWWWWWWWWWWWWWEWWWWEWWWWEWWWW',
         'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
         'DFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
         'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
