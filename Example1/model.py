@@ -239,13 +239,11 @@ class Bot(Agent):
     def find_shelf(self, package_type):
         shelf_type = ShelfA if package_type == 1 else ShelfB if package_type == 2 else ShelfC
         shelves = []
-        assigned_shelves = set(bot.goal for bot in self.model.schedule.agents if isinstance(bot, Bot) and bot.carry)
-
         for pos in self.model.grid.coord_iter():
             _, (x, y) = pos
             contents = self.model.grid.get_cell_list_contents([x, y])
             for obj in contents:
-                if isinstance(obj, shelf_type) and not obj.is_full and obj.has_capacity() and (x, y) not in assigned_shelves:
+                if isinstance(obj, shelf_type) and not obj.is_full and obj.has_capacity():
                     shelves.append((x, y))
         
         if shelves:
@@ -253,7 +251,6 @@ class Bot(Agent):
             return shelves[0]
         else:
             return None
-
 
 
     def step(self):
