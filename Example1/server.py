@@ -7,13 +7,13 @@ def agent_portrayal(agent):
                 "text": "", "text_color": "black"}
     elif isinstance(agent, ShelfA):
         return {"Shape": "rect", "Filled": "true", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
-                "Color": "#FFB200", "text": "🪟"}
+                "Color": "#FFB200", "text": f"{agent.capacity}"}
     elif isinstance(agent, ShelfB):
         return {"Shape": "rect", "Filled": "true", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
-                "Color": "#FFCB42", "text": "🪟"}
+                "Color": "#FFCB42", "text": f"{agent.capacity}"}
     elif isinstance(agent, ShelfC):
         return {"Shape": "rect", "Filled": "true", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
-                "Color": "#FFC54D", "text": "🪟"}
+                "Color": "#FFC54D", "text": f"{agent.capacity}"}
     elif isinstance(agent, Wall):
         return {"Shape": "rect", "Filled": "true", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
                 "Color": "#000000", "text": ""}
