@@ -89,65 +89,65 @@ class TaskManager(Agent):
                     bot.getTasks(task)
                     bot.goal = task[0]  # Asignar la posición objetivo
                     bot.path = bot.a_star(bot.pos, bot.goal)
-                    print(f"Bot {bot.unique_id} recibió una tarea hacia {bot.goal}")
+                    print(f"Bot {bot.unique_id} recibió un nuevo task hacia {bot.goal}")
 
         # Asignar tareas a los RBot para que recojan paquetes de estantes
         for rbot in self.model.schedule.agents:
             if isinstance(rbot, RBot) and not rbot.carry and not rbot.goal:
-                print(f"RBot {rbot.unique_id} está buscando una tarea")
                 task = self.get_available_shelf_task(rbot)
                 if task:
                     rbot.goal = task[0]
                     rbot.path = rbot.a_star(rbot.pos, rbot.goal)
                     self.assigned_shelves[rbot.unique_id] = rbot.goal
                     print(f"RBot {rbot.unique_id} recibió una tarea de shelf hacia {rbot.goal}")
-                else:
-                    print(f"No hay tareas disponibles para RBot {rbot.unique_id}")
 
     def get_available_shelf_task(self, rbot):
-        # Filtrar las tareas que no han sido asignadas
+        print(f"RBot {rbot.unique_id} está buscando una tarea")
         print(f"Tareas de shelf disponibles: {self.shelf_tasks}")
+
+        # Filtrar las tareas que no han sido asignadas
         for task in self.shelf_tasks:
             shelf_pos = task[0]
             if shelf_pos not in self.assigned_shelves.values():
+                print(f"RBot {rbot.unique_id} asignado a tarea en {shelf_pos}")
                 self.shelf_tasks.remove(task)  # Remover la tarea de la lista una vez asignada
-                print(f"Asignando tarea de shelf en posición {shelf_pos} a RBot {rbot.unique_id}")
                 return task
+        print(f"No hay tareas disponibles para RBot {rbot.unique_id}")
         return None
 
     def add_task(self, task):
         self.tasks.append(task)
-        print(f"Se añadió una tarea general: {task}")
 
     def add_shelf_task(self, task):
         self.shelf_tasks.append(task)
-        print(f"Se añadió una tarea de shelf: {task}")
 
     def update_tasks(self):
-        for pos in self.model.grid.coord_iter():
-            _, agents = pos
+        for pos, agents in self.model.grid.coord_iter():
             for agent in agents:
                 if isinstance(agent, (PackageA, PackageB, PackageC)) and not any(task[0] == agent.pos for task in self.tasks):
                     self.add_task((agent.pos, None))
 
     def update_shelf_tasks(self):
-        # Revisar todos los estantes (shelves) y agregar tareas si tienen paquetes (capacidad < 3 y > 0)
-        for pos in self.model.grid.coord_iter():
-            _, agents = pos
+        print("Actualizando tareas de shelf...")
+        for pos, agents in self.model.grid.coord_iter():
             for agent in agents:
-                if isinstance(agent, (ShelfA, ShelfB, ShelfC)) and 0 < agent.capacity < 3 and not any(task[0] == pos for task in self.shelf_tasks):
-                    adjacent_pos = [(pos[0] + dx, pos[1] + dy) for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]]
-                    for adj_pos in adjacent_pos:
-                        if self.model.grid.is_cell_empty(adj_pos):
-                            self.add_shelf_task((adj_pos, None))
-                            print(f"Se agregó una tarea de shelf para el RBot en la posición {adj_pos}")
-                            break
+                if isinstance(agent, (ShelfA, ShelfB, ShelfC)) and 0 < agent.capacity < 3:
+                    # Print shelf status for debugging
+                    print(f"Shelf encontrado en {pos} con capacidad restante {agent.capacity}")
+                    
+                    # Check if the task already exists in shelf_tasks
+                    if not any(task[0] == pos for task in self.shelf_tasks):
+                        adjacent_pos = [(pos[0] + dx, pos[1] + dy) for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]]
+                        for adj_pos in adjacent_pos:
+                            if self.model.grid.is_cell_empty(adj_pos):
+                                self.add_shelf_task((adj_pos, None))
+                                print(f"Se agregó una tarea de shelf para el RBot en la posición {adj_pos}")
+                                break
 
     def clear_shelf_assignment(self, rbot_id):
-        # Limpiar la asignación de estantes una vez que el RBot haya completado su tarea
         if rbot_id in self.assigned_shelves:
-            print(f"Limpiando la asignación del estante para RBot {rbot_id}")
             del self.assigned_shelves[rbot_id]
+
 
 
 class PackageA(Agent):
@@ -434,77 +434,56 @@ class RBot(Agent):
         self.carry = False  # Indica si el RBot lleva un paquete
         self.goal = None
         self.initial_position = initial_position
-        self.package_type = None
 
     def step(self):
-        # Print for debugging: Check current status
-        print(f"RBot {self.unique_id} en posición {self.pos}, carry: {self.carry}, goal: {self.goal}")
-        
-        # If not carrying a package, move to the assigned shelf
+        # Verificar si hay un camino asignado y mover al RBot
         if not self.carry:
-            if self.goal and self.path:
+            if self.path:
                 self.next_pos = self.path.pop(0)
-                print(f"RBot {self.unique_id} se mueve a {self.next_pos}")
-
-                # Evitar colisiones usando find_alternative_path
                 if self.detect_collision(self.next_pos):
                     print(f"RBot {self.unique_id} detectó una colisión en {self.next_pos}. Buscando ruta alternativa.")
                     self.path = self.find_alternative_path(self.pos, self.goal)
                     if not self.path:
-                        print(f"RBot {self.unique_id} no pudo encontrar una ruta alternativa.")
                         return
                     self.next_pos = self.path.pop(0)
 
                 self.model.grid.move_agent(self, self.next_pos)
 
-                # Check if adjacent to the shelf to pick up a package
+                # Verificar si el RBot llegó a su meta (estante con paquete)
                 if self.is_adjacent(self.next_pos, self.goal):
                     shelf = self.get_shelf_at_position(self.goal)
-                    if shelf and not shelf.is_full:
+                    if shelf:
                         self.pickup_from_shelf(shelf)
                         self.goal = self.find_s_package()  # Asignar punto de entrega
                         self.path = self.a_star(self.pos, self.goal)
-                        print(f"RBot {self.unique_id} recogió un paquete del shelf en {self.goal}. Ahora se dirige a entregar.")
-            else:
-                print(f"RBot {self.unique_id} no tiene una tarea o camino asignado.")
+
         else:
-            # Si lleva un paquete, ir a dejarlo en un SPackage
             if self.path:
                 self.next_pos = self.path.pop(0)
-                print(f"RBot {self.unique_id} se mueve a {self.next_pos} para entregar un paquete")
-
-                # Evitar colisiones usando find_alternative_path
                 if self.detect_collision(self.next_pos):
-                    print(f"RBot {self.unique_id} detectó una colisión en {self.next_pos}. Buscando ruta alternativa.")
                     self.path = self.find_alternative_path(self.pos, self.goal)
                     if not self.path:
-                        print(f"RBot {self.unique_id} no pudo encontrar una ruta alternativa para entregar.")
                         return
                     self.next_pos = self.path.pop(0)
 
                 self.model.grid.move_agent(self, self.next_pos)
 
-                # Check if adjacent to the SPackage to drop off
                 if self.is_adjacent(self.next_pos, self.goal):
                     self.drop_off_package()
                     self.goal = None
                     self.path = []
-                    print(f"RBot {self.unique_id} entregó un paquete en {self.goal}.")
 
     def pickup_from_shelf(self, shelf):
-        # Recoger el paquete del shelf
-        if shelf.capacity > 0:
-            shelf.decrement_capacity()  # Decrementar la capacidad ya que se quita un paquete
+        if shelf.capacity <= 2:
+            shelf.increment_capacity()
             self.carry = True
             print(f"RBot {self.unique_id} recogió un paquete del shelf en {self.goal}")
 
     def drop_off_package(self):
-        # Dejar el paquete en el SPackage
         self.carry = False
         print(f"RBot {self.unique_id} dejó un paquete en {self.pos}")
+        self.model.central_system.clear_shelf_assignment(self.unique_id)
 
-        # Limpiar la asignación de estantes una vez completada la tarea
-        self.model.central_system.clear_shelf_assignment(self.goal)
 
     def get_shelf_at_position(self, pos):
         contents = self.model.grid.get_cell_list_contents([pos])
@@ -574,8 +553,6 @@ class RBot(Agent):
                     else:
                         open_list.append((f_new, g_new, neighbor, current))
         return []
-
-
 
 class Environment(Model):
     def __init__(self, M: int, N: int, num_agents: int = 5, num_goals: int = 1, obstacle_portion: float = 0.3, mode_start_pos='Random'):
