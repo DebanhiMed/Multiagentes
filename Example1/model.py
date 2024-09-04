@@ -143,6 +143,7 @@ class Wall(Agent):
     def __init__(self, unique_id, model):
         super().__init__(unique_id, model)
 
+
 class Bot(Agent):
     def __init__(self, unique_id, model, initial_position):
         super().__init__(unique_id, model)
@@ -176,11 +177,9 @@ class Bot(Agent):
         alternative_path = self.a_star(start, goal, avoid_positions)
         
         if not alternative_path:
-            # Si no se encuentra un camino alternativo, reintentar ignorando las posiciones a evitar
             alternative_path = self.a_star(start, goal)
         
         return alternative_path
-
 
     def a_star(self, start, goal, avoid_positions=[]):
         open_list = []
@@ -252,9 +251,17 @@ class Bot(Agent):
         else:
             return None
 
-
     def step(self):
         self.history["path"].append({"x": self.pos[0], "y": self.pos[1]})
+
+        # Verificar si el shelf objetivo está lleno en cada paso
+        if self.goal:
+            shelf_at_goal = self.get_shelf_at_position(self.goal)
+            if shelf_at_goal and shelf_at_goal.is_full:
+                print(f"Shelf at {self.goal} is full. Redirecting robot {self.unique_id}.")
+                self.goal = self.find_shelf(1 if self.isCarryingA else 2 if self.isCarryingB else 3)
+                if self.goal:
+                    self.path = self.a_star(self.pos, self.goal)
 
         if self.path and self.goal:
             self.next_pos = self.path.pop(0)
@@ -326,7 +333,6 @@ class Bot(Agent):
                 self.path = []
                 self.reset_carrying_flags()
 
-                # Revisar si hay más paquetes y asignar tareas
                 self.model.central_system.step()
             else:
                 self.model.grid.move_agent(self, self.next_pos)
@@ -350,8 +356,12 @@ class Bot(Agent):
         else:
             self.model.grid.move_agent(self, self.next_pos)
 
-
-
+    def get_shelf_at_position(self, pos):
+        contents = self.model.grid.get_cell_list_contents([pos])
+        for obj in contents:
+            if isinstance(obj, (ShelfA, ShelfB, ShelfC)):
+                return obj
+        return None
 
     def update_carrying_flags(self, package):
         if isinstance(package, PackageA):
@@ -365,6 +375,7 @@ class Bot(Agent):
         self.isCarryingA = False
         self.isCarryingB = False
         self.isCarryingC = False
+
 
 class Environment(Model):
     def __init__(self, M: int, N: int, num_agents: int = 5, num_goals: int = 1, obstacle_portion: float = 0.3, mode_start_pos='Random'):
