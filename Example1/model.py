@@ -3,7 +3,7 @@ import random
 import json
 from mesa import Model, Agent
 from mesa.space import SingleGrid
-from mesa.time import RandomActivation
+from mesa.time import SimultaneousActivation
 from mesa.datacollection import DataCollector
 
 class ShelfA(Agent):
@@ -461,6 +461,7 @@ class RBot(Agent):
         super().__init__(unique_id, model)
         self.next_pos = None
         self.path = []
+        self.step_count = 0
         self.tasks = []
         self.carry = False 
         self.goal = None
@@ -473,56 +474,57 @@ class RBot(Agent):
     def step(self):
         """Simula un paso del RBot."""
         try:
-            print(f"RBot {self.unique_id} trabaja con {self.shelf_type}.")
-            if not self.carry and not self.goal:
-                # Solicitar tarea del TaskManager
-                task = self.model.central_system.assign_task(self)  # Obtener la tarea del TaskManager
-                if task:
-                    self.goal = task[0]  # La posición del shelf con menos de 3 paquetes
-                    self.path = self.a_star(self.pos, self.goal)
+            if self.step_count >= 200:
+                print(f"RBot {self.unique_id} trabaja con {self.shelf_type}.")
+                if not self.carry and not self.goal:
+                    task = self.model.central_system.assign_task(self)  # Obtener la tarea del TaskManager
+                    if task:
+                        self.goal = task[0]
+                        self.path = self.a_star(self.pos, self.goal)
 
-            # Si el RBot tiene una tarea y no lleva un paquete, ejecuta la tarea
-            if not self.carry:
-                if self.path:
-                    self.next_pos = self.path.pop(0)
-
-                    if self.detect_collision(self.next_pos):
-                        print(f"RBot {self.unique_id} detectó una colisión en {self.next_pos}. Buscando ruta alternativa.")
-                        self.path = self.find_alternative_path(self.pos, self.goal)
-                        if not self.path:
-                            return
+                # Si el RBot tiene una tarea y no lleva un paquete, ejecuta la tarea
+                if not self.carry:
+                    if self.path:
                         self.next_pos = self.path.pop(0)
 
-                    self.model.grid.move_agent(self, self.next_pos)
+                        if self.detect_collision(self.next_pos):
+                            print(f"RBot {self.unique_id} detectó una colisión en {self.next_pos}. Buscando ruta alternativa.")
+                            self.path = self.find_alternative_path(self.pos, self.goal)
+                            if not self.path:
+                                return
+                            self.next_pos = self.path.pop(0)
 
-                    # Si está adyacente al shelf, recoger el paquete
-                    if self.is_adjacent(self.next_pos, self.goal):
-                        shelf = self.get_shelf_at_position(self.goal)
-                        if shelf:
-                            self.pickup_from_shelf(shelf)  # Incrementa la capacidad del shelf
-                            self.goal = self.find_s_package()  # Redirigir hacia el SPackage
-                            self.path = self.a_star(self.pos, self.goal)
+                        self.model.grid.move_agent(self, self.next_pos)
+
+                        # Si está adyacente al shelf, recoger el paquete
+                        if self.is_adjacent(self.next_pos, self.goal):
+                            shelf = self.get_shelf_at_position(self.goal)
+                            if shelf:
+                                self.pickup_from_shelf(shelf)  # Incrementa la capacidad del shelf
+                                self.goal = self.find_s_package()  # Redirigir hacia el SPackage
+                                self.path = self.a_star(self.pos, self.goal)
+                else:
+                    # Si lleva un paquete, ir a dejarlo en un SPackage
+                    if self.path:
+                        self.next_pos = self.path.pop(0)
+
+                        if self.detect_collision(self.next_pos):
+                            print(f"RBot {self.unique_id} detectó una colisión en {self.next_pos}. Buscando ruta alternativa.")
+                            self.path = self.find_alternative_path(self.pos, self.goal)
+                            if not self.path:
+                                return
+                            self.next_pos = self.path.pop(0)
+
+                        self.model.grid.move_agent(self, self.next_pos)
+
+                        # Si está adyacente al SPackage, dejar el paquete
+                        if self.is_adjacent(self.next_pos, self.goal):
+                            self.drop_off_package()
+                            self.goal = None
+                            self.path = []
+                            self.model.central_system.complete_task(self)  # Notificar que la tarea fue completada
             else:
-                # Si lleva un paquete, ir a dejarlo en un SPackage
-                if self.path:
-                    self.next_pos = self.path.pop(0)
-
-                    if self.detect_collision(self.next_pos):
-                        print(f"RBot {self.unique_id} detectó una colisión en {self.next_pos}. Buscando ruta alternativa.")
-                        self.path = self.find_alternative_path(self.pos, self.goal)
-                        if not self.path:
-                            return
-                        self.next_pos = self.path.pop(0)
-
-                    self.model.grid.move_agent(self, self.next_pos)
-
-                    # Si está adyacente al SPackage, dejar el paquete
-                    if self.is_adjacent(self.next_pos, self.goal):
-                        self.drop_off_package()
-                        self.goal = None
-                        self.path = []
-                        self.model.central_system.complete_task(self)  # Notificar que la tarea fue completada
-
+                self.step_count += 1
         except Exception as e:
             print(f"Error: {e} upsi daisy")
 
@@ -633,7 +635,7 @@ class Environment(Model):
         self.num_agents = num_agents
         self.num_goals = num_goals
         self.grid = SingleGrid(M, N, False)
-        self.schedule = RandomActivation(self)
+        self.schedule = SimultaneousActivation(self)
         self.step_count = 0
         self.num_goals_slider = num_goals  
         self.mode_start_pos = mode_start_pos
