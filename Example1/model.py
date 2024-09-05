@@ -77,12 +77,34 @@ class ShelfC(Agent):
                 if self.is_full and self.capacity > 0:
                     self.is_full = False  # El estante ya no está lleno
 
+class Plant(Agent):
+    def __init__(self, unique_id, model):
+        super().__init__(unique_id, model)
+
+class Extintor(Agent):
+    def __init__(self, unique_id, model):
+        super().__init__(unique_id, model)
+
+class Cafe1(Agent):
+    def __init__(self, unique_id, model):
+        super().__init__(unique_id, model)
+
+class Cafe2(Agent):
+    def __init__(self, unique_id, model):
+        super().__init__(unique_id, model)
+
+class Inclusion(Agent):
+    def __init__(self, unique_id, model):
+        super().__init__(unique_id, model)
+
+
 class TaskManager(Agent):
     def __init__(self, unique_id, model):
         super().__init__(unique_id, model)
         self.tasks = []
-        self.shelf_tasks = []  # Tareas específicas para los RBot
-        self.assigned_shelves = {}  # Diccionario para llevar el registro de shelves asignados
+        self.shelf_tasks = []
+        self.assigned_shelves = {} 
+        self.occupied_spackages = set()
 
     def step(self):
         self.update_tasks()
@@ -102,23 +124,17 @@ class TaskManager(Agent):
         # Asignar tareas a los RBot para que recojan paquetes de estantes
         for rbot in self.model.schedule.agents:
             if isinstance(rbot, RBot) and not rbot.carry and not rbot.tasks:
-                print(f"RBot {rbot.unique_id} está disponible para recibir una tarea.")
-                # Verificar qué tipo de shelf le corresponde al RBot
                 shelf_type = ShelfA if rbot.isCarryingA else ShelfB if rbot.isCarryingB else ShelfC
-                print(f"RBot {rbot.unique_id} trabaja con {shelf_type.__name__}.")
-
-                # Buscar una tarea correspondiente a ese tipo de shelf
                 for task in self.shelf_tasks:
                     shelf_at_pos = self.model.grid.get_cell_list_contents([task[0]])
                     for agent in shelf_at_pos:
-                        if isinstance(agent, shelf_type):  # Solo asignar tareas del tipo correcto de shelf
-                            print(f"Tarea encontrada para RBot {rbot.unique_id} en {task[0]} (Shelf: {shelf_type.__name__})")
-                            rbot.getTasksR(task)  # Asignar tarea correctamente
-                            rbot.goal = task[0]  # Asignar la posición del estante
-                            rbot.path = rbot.a_star(rbot.pos, rbot.goal)  # Calcular el camino al shelf
+                        if isinstance(agent, shelf_type):
+                            rbot.getTasksR(task)
+                            rbot.goal = task[0]
+                            rbot.path = rbot.a_star(rbot.pos, rbot.goal)
                             print(f"RBot {rbot.unique_id} recibió una tarea hacia el shelf en {rbot.goal}")
-                            self.shelf_tasks.remove(task)  # Eliminar la tarea asignada
-                            break  # Salir del loop si se asigna una tarea
+                            self.shelf_tasks.remove(task)
+                            break
 
     def add_task(self, task):
         self.tasks.append(task)
@@ -130,32 +146,26 @@ class TaskManager(Agent):
             print(f"Tarea agregada: {task}")
 
     def update_tasks(self):
-        """Revisa la grilla y agrega tareas para recoger paquetes."""
         for pos in self.model.grid.coord_iter():
             _, agents = pos
             for agent in agents:
                 if isinstance(agent, (PackageA, PackageB, PackageC)) and pos not in self.assigned_shelves:
                     task = (pos, None)
                     self.add_task(task)
-                    print(f"Tarea asignada para recoger paquete en {pos}")
 
 
     def update_shelf_tasks(self):
-        """Revisar todos los estantes (shelves) y agregar tareas si su capacidad es menor a 3."""
         for pos in self.model.grid.coord_iter():
             _, agents = pos
             for agent in agents:
-                # Verificar que el shelf tiene menos de 3 paquetes y que no está asignado
                 if isinstance(agent, (ShelfA, ShelfB, ShelfC)) and agent.capacity < 3 and pos not in self.assigned_shelves:
                     task = (pos, None)
-                    self.add_shelf_task(task)  # Agregar la tarea al shelf_tasks
-                    self.assigned_shelves[pos] = True  # Marcar el shelf como asignado
-                    print(f"Task asignada para shelf en {pos}")
+                    self.add_shelf_task(task)
+                    self.assigned_shelves[pos] = True
 
     def assign_task(self, rbot):
         """Asigna una tarea de shelf a un RBot basado en el tipo de shelf que maneja."""
         shelf_type = rbot.shelf_type
-        print(f"RBot {rbot.unique_id} está disponible para recibir una tarea.")
 
         # Filtrar tareas de shelf según el tipo de shelf que maneja el RBot
         shelf_tasks_filtered = [task for task in self.shelf_tasks if isinstance(self.model.grid.get_cell_list_contents(task[0])[0], shelf_type)]
@@ -165,8 +175,6 @@ class TaskManager(Agent):
             self.assigned_shelves[task[0]] = rbot.unique_id  # Registrar que el shelf está asignado a un RBot
             print(f"Tarea asignada a RBot {rbot.unique_id} para {shelf_type.__name__} en {task[0]}.")
             return task
-        else:
-            print(f"No hay tareas disponibles para {rbot.shelf_type.__name__}.")
         return None
 
     def complete_task(self, rbot):
@@ -178,7 +186,22 @@ class TaskManager(Agent):
                 print(f"RBot {rbot.unique_id} completó la tarea asignada para el shelf en {shelf_pos}")
                 break
 
+    def occupy_spackage(self, spackage_pos):
+        """Marca un SPackage como ocupado."""
+        self.occupied_spackages.add(spackage_pos)
 
+<<<<<<< HEAD
+=======
+    def release_spackage(self, spackage_pos):
+        """Libera un SPackage una vez completado."""
+        if spackage_pos in self.occupied_spackages:
+            self.occupied_spackages.remove(spackage_pos)
+
+    def is_spackage_occupied(self, spackage_pos):
+        """Verifica si un SPackage está ocupado."""
+        return spackage_pos in self.occupied_spackages
+
+>>>>>>> ffc053f (modificado + lo de debanhi)
 class PackageA(Agent):
     def __init__(self, unique_id, model):
         super().__init__(unique_id, model)
@@ -222,6 +245,7 @@ class Wall(Agent):
     def __init__(self, unique_id, model):
         super().__init__(unique_id, model)
 
+<<<<<<< HEAD
 
 class Plant(Agent):
     def __init__(self, unique_id, model):
@@ -243,6 +267,8 @@ class Inclusion(Agent):
     def __init__(self, unique_id, model):
         super().__init__(unique_id, model)
 
+=======
+>>>>>>> ffc053f (modificado + lo de debanhi)
 class Bot(Agent):
     def __init__(self, unique_id, model, initial_position):
         super().__init__(unique_id, model)
@@ -251,6 +277,7 @@ class Bot(Agent):
         self.battery = 100  
         self.path = []
         self.carry = False
+        self.packages_in_shelves = 0
         self.tasks = []
         self.goal = None
         self.initial_position = initial_position
@@ -258,12 +285,6 @@ class Bot(Agent):
         self.isCarryingA = False
         self.isCarryingB = False
         self.isCarryingC = False
-        self.history = {
-            "spawnPosition": {"x": initial_position[0], "y": initial_position[1]},
-            "path": [],
-            "deliveryPoints": [],
-            "pickupPoints": []
-        }
 
     def getTasks(self, task):
         self.tasks.append(task)
@@ -352,7 +373,6 @@ class Bot(Agent):
 
     def step(self):
         try:
-            self.history["path"].append({"x": self.pos[0], "y": self.pos[1]})
 
             # Verificar si el shelf objetivo está lleno en cada paso
             if self.goal:
@@ -386,7 +406,6 @@ class Bot(Agent):
                         self.carry = True
                         self.update_carrying_flags(goal)
 
-                        self.history["pickupPoints"].append({"x": self.next_pos[0], "y": self.next_pos[1]})
 
                         if isinstance(goal, PackageA):
                             package_type = 1
@@ -404,7 +423,7 @@ class Bot(Agent):
 
                 if shelf_in_adjacent_pos:
                     shelf = next(agent for pos in shelf_in_adjacent_pos for agent in self.model.grid.get_cell_list_contents([pos]) if isinstance(agent, (ShelfA, ShelfB, ShelfC)) and not agent.is_full)
-
+                    self.model.packages_in_shelves += 1
                     if isinstance(shelf, ShelfA) and self.isCarryingA and shelf.has_capacity():
                         shelf.decrement_capacity()
                         if not shelf.has_capacity():
@@ -424,7 +443,6 @@ class Bot(Agent):
                         return
 
                     self.carry = False
-                    self.history["deliveryPoints"].append({"x": self.pos[0], "y": self.pos[1]})
                     #   print(f"Robot {self.unique_id} dejó una caja en {self.pos}")
 
                     self.goal = None
@@ -482,68 +500,71 @@ class RBot(Agent):
         self.path = []
         self.step_count = 0
         self.tasks = []
-        self.carry = False 
+        self.carry = False
         self.goal = None
         self.initial_position = initial_position
-        self.shelf_type = shelf_type  # El tipo de shelf que este RBot manejará
+        self.shelf_type = shelf_type
         self.isCarryingA = False
         self.isCarryingB = False
         self.isCarryingC = False
+        self.movements = 0
+        self.PackagesInSPackage = 0
+        self.assigned_spackage = None
 
     def step(self):
         """Simula un paso del RBot."""
         try:
-            if self.step_count >= 200:
-                print(f"RBot {self.unique_id} trabaja con {self.shelf_type}.")
-                if not self.carry and not self.goal:
-                    task = self.model.central_system.assign_task(self)  # Obtener la tarea del TaskManager
-                    if task:
-                        self.goal = task[0]
-                        self.path = self.a_star(self.pos, self.goal)
+            if not self.carry and not self.goal:
+                task = self.model.central_system.assign_task(self)  # Obtener la tarea del TaskManager
+                if task:
+                    self.goal = task[0]
+                    self.path = self.a_star(self.pos, self.goal)
 
-                # Si el RBot tiene una tarea y no lleva un paquete, ejecuta la tarea
-                if not self.carry:
-                    if self.path:
+            # Si el RBot tiene una tarea y no lleva un paquete, ejecuta la tarea
+            if not self.carry:
+                if self.path:
+                    self.next_pos = self.path.pop(0)
+
+                    if self.detect_collision(self.next_pos):
+                        print(f"RBot {self.unique_id} detectó una colisión en {self.next_pos}. Buscando ruta alternativa.")
+                        self.path = self.find_alternative_path(self.pos, self.goal)
+                        if not self.path:
+                            return
                         self.next_pos = self.path.pop(0)
 
-                        if self.detect_collision(self.next_pos):
-                            print(f"RBot {self.unique_id} detectó una colisión en {self.next_pos}. Buscando ruta alternativa.")
-                            self.path = self.find_alternative_path(self.pos, self.goal)
-                            if not self.path:
-                                return
-                            self.next_pos = self.path.pop(0)
+                    self.model.grid.move_agent(self, self.next_pos)
 
-                        self.model.grid.move_agent(self, self.next_pos)
-
-                        # Si está adyacente al shelf, recoger el paquete
-                        if self.is_adjacent(self.next_pos, self.goal):
-                            shelf = self.get_shelf_at_position(self.goal)
-                            if shelf:
-                                self.pickup_from_shelf(shelf)  # Incrementa la capacidad del shelf
-                                self.goal = self.find_s_package()  # Redirigir hacia el SPackage
+                    # Si está adyacente al shelf, recoger el paquete
+                    if self.is_adjacent(self.next_pos, self.goal):
+                        shelf = self.get_shelf_at_position(self.goal)
+                        if shelf:
+                            self.pickup_from_shelf(shelf)  # Incrementa la capacidad del shelf
+                            self.goal = self.find_available_spackage()  # Asignar un SPackage disponible
+                            if self.goal:  # Si encuentra un SPackage, asignar el camino
                                 self.path = self.a_star(self.pos, self.goal)
-                else:
-                    # Si lleva un paquete, ir a dejarlo en un SPackage
-                    if self.path:
+            else:
+                # Si lleva un paquete, ir a dejarlo en el SPackage
+                if self.path:
+                    self.next_pos = self.path.pop(0)
+
+                    if self.detect_collision(self.next_pos):
+                        print(f"RBot {self.unique_id} detectó una colisión en {self.next_pos}. Buscando ruta alternativa.")
+                        self.path = self.find_alternative_path(self.pos, self.goal)
+                        if not self.path:
+                            return
                         self.next_pos = self.path.pop(0)
 
-                        if self.detect_collision(self.next_pos):
-                            print(f"RBot {self.unique_id} detectó una colisión en {self.next_pos}. Buscando ruta alternativa.")
-                            self.path = self.find_alternative_path(self.pos, self.goal)
-                            if not self.path:
-                                return
-                            self.next_pos = self.path.pop(0)
+                    self.model.grid.move_agent(self, self.next_pos)
+                    self.movements += 1
 
-                        self.model.grid.move_agent(self, self.next_pos)
-
-                        # Si está adyacente al SPackage, dejar el paquete
-                        if self.is_adjacent(self.next_pos, self.goal):
-                            self.drop_off_package()
-                            self.goal = None
-                            self.path = []
-                            self.model.central_system.complete_task(self)  # Notificar que la tarea fue completada
-            else:
-                self.step_count += 1
+                    # Si está adyacente al SPackage, dejar el paquete
+                    if self.is_adjacent(self.next_pos, self.goal):
+                        self.drop_off_package()
+                        self.PackagesInSPackage += 1
+                        self.model.central_system.release_spackage(self.goal)  # Liberar SPackage
+                        self.goal = None
+                        self.path = []
+                        self.model.central_system.complete_task(self)
         except Exception as e:
             print(f"Error: {e} upsi daisy")
 
@@ -559,13 +580,14 @@ class RBot(Agent):
                 return obj
         return None
 
-    def find_s_package(self):
-        """Encuentra la posición de un SPackage para la entrega."""
+    def find_available_spackage(self):
+        """Encuentra un SPackage disponible para la entrega."""
         for pos in self.model.grid.coord_iter():
             _, (x, y) = pos
             contents = self.model.grid.get_cell_list_contents([x, y])
             for obj in contents:
-                if isinstance(obj, SPackage):
+                if isinstance(obj, SPackage) and not self.model.central_system.is_spackage_occupied((x, y)):
+                    self.model.central_system.occupy_spackage((x, y))  # Marcar SPackage como ocupado
                     return (x, y)
         return None
 
@@ -588,10 +610,13 @@ class RBot(Agent):
         self.isCarryingA = False
         self.isCarryingB = False
         self.isCarryingC = False
+        self.model.packages_in_spackage += 1
         print(f"RBot {self.unique_id} dejó el paquete en {self.pos}")
 
     def is_adjacent(self, pos1, pos2):
         """Verifica si dos posiciones son adyacentes."""
+        if pos1 is None or pos2 is None:
+            return False
         return abs(pos1[0] - pos2[0]) + abs(pos1[1] - pos2[1]) == 1
 
     def detect_collision(self, next_pos):
@@ -693,11 +718,17 @@ class Environment(Model):
         'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
     ]
 
+
         self._manual_placement(self.desc, bot_id)
+
+        self.packages_in_shelves = 0
+        self.packages_in_spackage = 0
 
         self.datacollector = DataCollector(
             model_reporters={
-                "TotalMovements": lambda m: np.sum([a.movements for a in m.schedule.agents if isinstance(a, Bot)]),
+                "TotalMovements": lambda m: int(np.sum([a.movements for a in m.schedule.agents if isinstance(a, (Bot, RBot))])),
+                "PackagesInShelves": lambda m: m.packages_in_shelves,
+                "PackagesInSPackage": lambda m: m.packages_in_spackage,
             }
         )
 
@@ -788,12 +819,5 @@ class Environment(Model):
     def step(self):
         self.datacollector.collect(self)
         self.schedule.step()
-        robots_data = {"robots": []}
-        for agent in self.schedule.agents:
-            if isinstance(agent, Bot):
-                robots_data["robots"].append(agent.history)
-
-        with open("resultados_simulacion.json", "w") as json_file:
-            json.dump(robots_data, json_file, indent=4)
-
         self.running = any([isinstance(a, Bot) for a in self.schedule.agents])
+

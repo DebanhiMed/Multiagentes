@@ -1,4 +1,5 @@
 {
+<<<<<<< HEAD
     "robots": [
         {
             "spawnPosition": {
@@ -2785,4 +2786,7 @@
             ]
         }
     ]
+=======
+    "robots": []
+>>>>>>> ffc053f (modificado + lo de debanhi)
 }

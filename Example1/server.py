@@ -57,15 +57,16 @@ def agent_portrayal(agent):
         return {"Shape": "rect", "Filled": "true", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
                 "Color": "white", "text": ""}
 
+
 grid = mesa.visualization.CanvasGrid(
     agent_portrayal, 38, 22, 600, 400)
 
 # Create a chart to track the battery of the robots
-chart_charges = mesa.visualization.ChartModule(
+chart = mesa.visualization.ChartModule(
     [
-        {"Label": "MinBattery", "Color": "#DD3B30", "label": "Min Battery"},
-        {"Label": "MaxBattery", "Color": "#403EDD", "label": "Max Battery"},
-        {"Label": "MeanBattery", "Color": "#DD1BD7", "label": "Mean Battery"},
+        {"Label": "TotalMovements", "Color": "#00AA00"},
+        {"Label": "PackagesInShelves", "Color": "#FF0000"},
+        {"Label": "PackagesInSPackage", "Color": "#0000FF"},
     ],
     data_collector_name='datacollector'
 )
@@ -77,8 +78,7 @@ model_params = {
 
 # Inicializar el servidor y el modelo
 server = mesa.visualization.ModularServer(
-    Environment, [grid, chart_charges],
-    "goats", model_params, 8521
+    Environment, [grid, chart], "Warehouse Simulation", model_params, 8521
 )
 
 # Lanzar el servidor y la simulación
@@ -89,5 +89,4 @@ model = server.model
 while model.running:
     model.step()
 
-# Guardar los datos al finalizar la simulación
-model.save_data_to_json("resultados_simulacion.json")
+
