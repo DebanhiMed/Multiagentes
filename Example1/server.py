@@ -7,25 +7,25 @@ def agent_portrayal(agent):
                 "text": "", "text_color": "black"}
     elif isinstance(agent, ShelfA):
         return {"Shape": "rect", "Filled": "true", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
-                "Color": "#FFB200", "text": f"{agent.capacity}"}
+                "Color": "#FF0000", "text": f"{agent.capacity}"}
     elif isinstance(agent, ShelfB):
         return {"Shape": "rect", "Filled": "true", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
-                "Color": "#FFCB42", "text": f"{agent.capacity}"}
+                "Color": "#00FF00", "text": f"{agent.capacity}"}
     elif isinstance(agent, ShelfC):
         return {"Shape": "rect", "Filled": "true", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
-                "Color": "#FFC54D", "text": f"{agent.capacity}"}
+                "Color": "#0000FF", "text": f"{agent.capacity}"}
     elif isinstance(agent, Wall):
         return {"Shape": "rect", "Filled": "true", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
                 "Color": "#000000", "text": ""}
     elif isinstance(agent, PackageA):
         return {"Shape": "rect", "Filled": "true", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
-                "Color": "#FFB200", "text": "📦"}
+                "Color": "#FF0000", "text": "📦"}
     elif isinstance(agent, PackageB):
         return {"Shape": "rect", "Filled": "true", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
-                "Color": "#FFCB42", "text": "📦"}
+                "Color": "#00FF00", "text": "📦"}
     elif isinstance(agent, PackageC):
         return {"Shape": "rect", "Filled": "true", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
-                "Color": "#FFC54D", "text": "📦"}
+                "Color": "#0000FF", "text": "📦"}
     elif isinstance(agent, SPackage):
         return {"Shape": "rect", "Filled": "true", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
                 "Color": "#ccbeaf", "text": "🚚"}

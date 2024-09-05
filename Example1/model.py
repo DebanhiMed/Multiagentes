@@ -8,9 +8,9 @@ from mesa.datacollection import DataCollector
 
 class ShelfA(Agent):
     def __init__(self, unique_id, model, capacity=3):
-            super().__init__(unique_id, model)
-            self.capacity = capacity
-            self.is_full = False
+        super().__init__(unique_id, model)
+        self.capacity = capacity
+        self.is_full = False
 
     def has_capacity(self):
             return self.capacity > 0
@@ -20,7 +20,6 @@ class ShelfA(Agent):
                 self.capacity -= 1
                 if self.capacity == 0:
                     self.is_full = True  # Marcar como lleno cuando la capacidad sea 0
-                # Añadir una tarea para que un RBot venga a recoger del estante
                 self.model.central_system.add_shelf_task((self.pos, None))
                 print(f"Capacidad reducida en ShelfA en {self.pos}. Tarea creada.")
 
@@ -60,10 +59,10 @@ class ShelfC(Agent):
         self.capacity = capacity
         self.is_full = False
 
-        def has_capacity(self):
+    def has_capacity(self):
             return self.capacity > 0
 
-        def decrement_capacity(self):
+    def decrement_capacity(self):
             if self.capacity > 0:
                 self.capacity -= 1
                 if self.capacity == 0:
@@ -72,7 +71,7 @@ class ShelfC(Agent):
                 self.model.central_system.add_shelf_task((self.pos, None))
                 print(f"Capacidad reducida en ShelfC en {self.pos}. Tarea creada.")
 
-        def increment_capacity(self):
+    def increment_capacity(self):
             if self.capacity < 3:
                 self.capacity += 1
                 if self.is_full and self.capacity > 0:
@@ -164,12 +163,11 @@ class TaskManager(Agent):
         if shelf_tasks_filtered:
             task = shelf_tasks_filtered.pop(0)  # Tomar la primera tarea disponible de ese tipo de shelf
             self.assigned_shelves[task[0]] = rbot.unique_id  # Registrar que el shelf está asignado a un RBot
-            print(f"Tarea asignada a RBot {rbot.unique_id} para {shelf_type} en {task[0]}.")
+            print(f"Tarea asignada a RBot {rbot.unique_id} para {shelf_type.__name__} en {task[0]}.")
             return task
         else:
-            print(f"No hay tareas disponibles para {rbot.shelf_type}.")
+            print(f"No hay tareas disponibles para {rbot.shelf_type.__name__}.")
         return None
-
 
     def complete_task(self, rbot):
         """Marca la tarea como completada y elimina la asignación del shelf."""
