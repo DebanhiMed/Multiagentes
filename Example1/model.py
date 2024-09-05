@@ -179,7 +179,6 @@ class TaskManager(Agent):
                 break
 
 
-
 class PackageA(Agent):
     def __init__(self, unique_id, model):
         super().__init__(unique_id, model)
@@ -223,6 +222,26 @@ class Wall(Agent):
     def __init__(self, unique_id, model):
         super().__init__(unique_id, model)
 
+
+class Plant(Agent):
+    def __init__(self, unique_id, model):
+        super().__init__(unique_id, model)
+
+class Extintor(Agent):
+    def __init__(self, unique_id, model):
+        super().__init__(unique_id, model)
+
+class Cafe1(Agent):
+    def __init__(self, unique_id, model):
+        super().__init__(unique_id, model)
+
+class Cafe2(Agent):
+    def __init__(self, unique_id, model):
+        super().__init__(unique_id, model)
+
+class Inclusion(Agent):
+    def __init__(self, unique_id, model):
+        super().__init__(unique_id, model)
 
 class Bot(Agent):
     def __init__(self, unique_id, model, initial_position):
@@ -651,26 +670,26 @@ class Environment(Model):
 
         self.desc = [
         'WWWWWWWWWWWWWWWWWWWWWWWEWWWWEWWWWEWWWW',
+        'WFFFFFFLLLLFFFFFFUFFFFFFFFFFFFFFFFFF2W',
+        'DFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF2W',
         'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF1W',
         'DFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
-        'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
-        'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
-        'DFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
-        'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
-        'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
-        'DFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
-        'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF2W',
+        'WFFFFFFFCCFFFFFFFFBBFFFFFFFFAAFFFFFF2W',
+        'DFFFFFFFCCFFFFFFFFBBFFFFFFFFAAFFFFFFFW',
         'WFFFFFFFCCFFFFFFFFBBFFFFFFFFAAFFFFFFFW',
         'WFFFFFFFCCFFFFFFFFBBFFFFFFFFAAFFFFFFFW',
+        'WUFFFFFFCCFFFFFFFFBBFFFFFFFFAAFFFFFF3W',
         'WFFFFFFFCCFFFFFFFFBBFFFFFFFFAAFFFFFFFW',
         'WFFFFFFFCCFFFFFFFFBBFFFFFFFFAAFFFFFFFW',
-        'WFFFFFFFCCFFFFFFFFBBFFFFFFFFAAFFFFFFFW',
-        'WFFFFFFFCCFFFFFFFFBBFFFFFFFFAAFFFFFFFW',
+        'WLFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFLW',
+        'WLFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFLW',
         'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+        'WFFFFFFFRFFRFFRFFFFFFFFTFFTFFTFFFFFFFW',
+        'W3FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFUW',
         'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
-        'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
-        'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
-        'WFRFFRFFRFFFFFFFFFFFFFFFTFFFTFFFFTFFFW',
+        'WFFFFLLLLLFFFFFF22F1F22FFFFFFFLLLLFFFW',
         'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
     ]
 
@@ -704,6 +723,21 @@ class Environment(Model):
                 elif desc[y][x] == 'W':  
                     wall = Wall(self.next_id(), self)
                     self.grid.place_agent(wall, (x, y))
+                elif desc[y][x] == 'L':  
+                    plant = Plant(self.next_id(), self)
+                    self.grid.place_agent(plant, (x, y))
+                elif desc[y][x] == '1':  
+                    cafe1 = Cafe1(self.next_id(), self)
+                    self.grid.place_agent(cafe1, (x, y))
+                elif desc[y][x] == '2':  
+                    cafe2 = Cafe2(self.next_id(), self)
+                    self.grid.place_agent(cafe2, (x, y))
+                elif desc[y][x] == '3':  
+                    ext = Extintor(self.next_id(), self)
+                    self.grid.place_agent(ext, (x, y))
+                elif desc[y][x] == 'U':  
+                    inclusion = Inclusion(self.next_id(), self)
+                    self.grid.place_agent(inclusion, (x, y))
                 elif desc[y][x] == 'X':  
                     packagea = (x, y)
                     packageA = PackageA(self.next_id(), self)

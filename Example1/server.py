@@ -1,40 +1,58 @@
 import mesa
-from model import Environment, Bot, ShelfA, ShelfB, ShelfC, Wall, SPackage, PackageA, PackageB, PackageC, EPackage, RBot
+from model import Environment, Bot, ShelfA, ShelfB, ShelfC, Wall, SPackage, PackageA, PackageB, PackageC, EPackage, RBot, Plant, Cafe1, Cafe2, Inclusion, Extintor
 
 def agent_portrayal(agent):
     if isinstance(agent, Bot):
-        return {"Shape": "circle", "Filled": "false", "Color": "Grey", "Layer": 1, "r": 0.9,
+        return {"Shape": "circle", "Filled": "false", "Color": "peru", "Layer": 1, "r": 0.9,
                 "text": "", "text_color": "black"}
     elif isinstance(agent, ShelfA):
         return {"Shape": "rect", "Filled": "true", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
-                "Color": "#FF0000", "text": f"{agent.capacity}"}
+                "Color": "blanchedalmond", "text": f"{agent.capacity}"}
+    #antiquewhite
+    #burlywood
+    #blanchedalmod
     elif isinstance(agent, ShelfB):
         return {"Shape": "rect", "Filled": "true", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
-                "Color": "#00FF00", "text": f"{agent.capacity}"}
+                "Color": "wheat", "text": f"{agent.capacity}"}
     elif isinstance(agent, ShelfC):
         return {"Shape": "rect", "Filled": "true", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
-                "Color": "#0000FF", "text": f"{agent.capacity}"}
+                "Color": "moccasin", "text": f"{agent.capacity}"}
     elif isinstance(agent, Wall):
         return {"Shape": "rect", "Filled": "true", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
                 "Color": "#000000", "text": ""}
+    elif isinstance(agent, Plant):
+        return {"Shape": "rect", "Filled": "false", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "White",
+                "Color": "#FFFFFF", "text": "🪴"}
+    elif isinstance(agent, Cafe1):
+        return {"Shape": "rect", "Filled": "false", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "White",
+                "Color": "#FFFFFF", "text": "☕️"}
+    elif isinstance(agent, Cafe2):
+        return {"Shape": "rect", "Filled": "false", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "White",
+                "Color": "#FFFFFF", "text": "❗️"}
+    elif isinstance(agent, Inclusion):
+        return {"Shape": "rect", "Filled": "false", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "White",
+                "Color": "lightsteelblue", "text": "♿︎"}
+    elif isinstance(agent, Extintor):
+        return {"Shape": "rect", "Filled": "false", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "White",
+                "Color": "peachpuff", "text": "🧯"}
     elif isinstance(agent, PackageA):
         return {"Shape": "rect", "Filled": "true", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
-                "Color": "#FF0000", "text": "📦"}
+                "Color": "burlywood", "text": "📦"}
     elif isinstance(agent, PackageB):
         return {"Shape": "rect", "Filled": "true", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
-                "Color": "#00FF00", "text": "📦"}
+                "Color": "wheat", "text": "📦"}
     elif isinstance(agent, PackageC):
         return {"Shape": "rect", "Filled": "true", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
-                "Color": "#0000FF", "text": "📦"}
+                "Color": "moccasin", "text": "📦"}
     elif isinstance(agent, SPackage):
         return {"Shape": "rect", "Filled": "true", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
-                "Color": "#ccbeaf", "text": "🚚"}
+                "Color": "orangered", "text": "🚚"}
     elif isinstance(agent, EPackage):
         return {"Shape": "rect", "Filled": "true", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
-                "Color": "#ccbeff", "text": "🚛"}
+                "Color": "lime", "text": "🚛"}
     elif isinstance(agent, RBot):
-        return {"Shape": "circle", "Filled": "true", "Color": "blue", "Layer": 1, "r": 0.9,
-                "text": "R", "text_color": "white"}
+        return {"Shape": "circle", "Filled": "false", "Color": "saddlebrown", "Layer": 1, "r": 0.9,
+                "text": "", "text_color": "black"}
     else:
         return {"Shape": "rect", "Filled": "true", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
                 "Color": "white", "text": ""}
