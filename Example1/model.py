@@ -190,8 +190,6 @@ class TaskManager(Agent):
         """Marca un SPackage como ocupado."""
         self.occupied_spackages.add(spackage_pos)
 
-<<<<<<< HEAD
-=======
     def release_spackage(self, spackage_pos):
         """Libera un SPackage una vez completado."""
         if spackage_pos in self.occupied_spackages:
@@ -201,7 +199,6 @@ class TaskManager(Agent):
         """Verifica si un SPackage está ocupado."""
         return spackage_pos in self.occupied_spackages
 
->>>>>>> ffc053f (modificado + lo de debanhi)
 class PackageA(Agent):
     def __init__(self, unique_id, model):
         super().__init__(unique_id, model)
@@ -245,30 +242,6 @@ class Wall(Agent):
     def __init__(self, unique_id, model):
         super().__init__(unique_id, model)
 
-<<<<<<< HEAD
-
-class Plant(Agent):
-    def __init__(self, unique_id, model):
-        super().__init__(unique_id, model)
-
-class Extintor(Agent):
-    def __init__(self, unique_id, model):
-        super().__init__(unique_id, model)
-
-class Cafe1(Agent):
-    def __init__(self, unique_id, model):
-        super().__init__(unique_id, model)
-
-class Cafe2(Agent):
-    def __init__(self, unique_id, model):
-        super().__init__(unique_id, model)
-
-class Inclusion(Agent):
-    def __init__(self, unique_id, model):
-        super().__init__(unique_id, model)
-
-=======
->>>>>>> ffc053f (modificado + lo de debanhi)
 class Bot(Agent):
     def __init__(self, unique_id, model, initial_position):
         super().__init__(unique_id, model)
@@ -820,4 +793,5 @@ class Environment(Model):
         self.datacollector.collect(self)
         self.schedule.step()
         self.running = any([isinstance(a, Bot) for a in self.schedule.agents])
+
 
