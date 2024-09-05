@@ -8,24 +8,27 @@ from mesa.datacollection import DataCollector
 
 class ShelfA(Agent):
     def __init__(self, unique_id, model, capacity=3):
-        super().__init__(unique_id, model)
-        self.capacity = capacity
-        self.is_full = False
-        
+            super().__init__(unique_id, model)
+            self.capacity = capacity
+            self.is_full = False
+
     def has_capacity(self):
-        return self.capacity > 0
+            return self.capacity > 0
 
     def decrement_capacity(self):
-        if self.capacity > 0:
-            self.capacity -= 1
-            if self.capacity == 0:
-                self.is_full = True  # Mark the shelf as full when capacity reaches 0
+            if self.capacity > 0:
+                self.capacity -= 1
+                if self.capacity == 0:
+                    self.is_full = True  # Marcar como lleno cuando la capacidad sea 0
+                # Añadir una tarea para que un RBot venga a recoger del estante
+                self.model.central_system.add_shelf_task((self.pos, None))
+                print(f"Capacidad reducida en ShelfA en {self.pos}. Tarea creada.")
 
     def increment_capacity(self):
-        if self.capacity < 3:
-            self.capacity += 1
-            if self.is_full and self.capacity > 0:
-                self.is_full = False  # Mark the shelf as not full when capacity is increased
+            if self.capacity < 3:
+                self.capacity += 1
+                if self.is_full and self.capacity > 0:
+                    self.is_full = False  # El estante ya no está lleno
 
 class ShelfB(Agent):
     def __init__(self, unique_id, model, capacity=3):
@@ -40,13 +43,16 @@ class ShelfB(Agent):
         if self.capacity > 0:
             self.capacity -= 1
             if self.capacity == 0:
-                self.is_full = True  # Mark the shelf as full when capacity reaches 0
+                self.is_full = True  # Marcar como lleno cuando la capacidad sea 0
+            # Añadir una tarea para que un RBot venga a recoger del estante
+            self.model.central_system.add_shelf_task((self.pos, None))
+            print(f"Capacidad reducida en ShelfB en {self.pos}. Tarea creada.")
 
     def increment_capacity(self):
         if self.capacity < 3:
             self.capacity += 1
             if self.is_full and self.capacity > 0:
-                self.is_full = False  # Mark the shelf as not full when capacity is increased
+                self.is_full = False  # El estante ya no está lleno
 
 class ShelfC(Agent):
     def __init__(self, unique_id, model, capacity=3):
@@ -54,20 +60,23 @@ class ShelfC(Agent):
         self.capacity = capacity
         self.is_full = False
 
-    def has_capacity(self):
-        return self.capacity > 0
+        def has_capacity(self):
+            return self.capacity > 0
 
-    def decrement_capacity(self):
-        if self.capacity > 0:
-            self.capacity -= 1
-            if self.capacity == 0:
-                self.is_full = True  # Mark the shelf as full when capacity reaches 0
+        def decrement_capacity(self):
+            if self.capacity > 0:
+                self.capacity -= 1
+                if self.capacity == 0:
+                    self.is_full = True  # Marcar como lleno cuando la capacidad sea 0
+                # Añadir una tarea para que un RBot venga a recoger del estante
+                self.model.central_system.add_shelf_task((self.pos, None))
+                print(f"Capacidad reducida en ShelfC en {self.pos}. Tarea creada.")
 
-    def increment_capacity(self):
-        if self.capacity < 3:
-            self.capacity += 1
-            if self.is_full and self.capacity > 0:
-                self.is_full = False  # Mark the shelf as not full when capacity is increased
+        def increment_capacity(self):
+            if self.capacity < 3:
+                self.capacity += 1
+                if self.is_full and self.capacity > 0:
+                    self.is_full = False  # El estante ya no está lleno
 
 class TaskManager(Agent):
     def __init__(self, unique_id, model):
@@ -80,6 +89,7 @@ class TaskManager(Agent):
         self.update_tasks()
         self.update_shelf_tasks()
 
+        # Asignar tareas a los Bot regulares
         for bot in self.model.schedule.agents:
             if isinstance(bot, Bot) and not bot.tasks and not bot.carry and not bot.returning_to_start:
                 if self.tasks:
@@ -90,33 +100,46 @@ class TaskManager(Agent):
                         bot.path = bot.a_star(bot.pos, bot.goal)
                         print(f"Bot {bot.unique_id} recibió un nuevo task hacia {bot.goal}")
 
+        # Asignar tareas a los RBot para que recojan paquetes de estantes
         for rbot in self.model.schedule.agents:
             if isinstance(rbot, RBot) and not rbot.carry and not rbot.tasks:
-                if self.shelf_tasks:  # Verificar que haya tareas disponibles
-                    task = self.shelf_tasks.pop(0)  # Obtener la primera tarea disponible
-                    if isinstance(task, tuple):
-                        rbot.getTasksR(task)  # Asignar tarea correctamente
-                        rbot.goal = task[0]  # Asignar la posición del estante
-                        rbot.path = rbot.a_star(rbot.pos, rbot.goal)  # Calcular el camino al shelf
-                        print(f"RBot {rbot.unique_id} recibió una tarea hacia el shelf en {rbot.goal}")
+                print(f"RBot {rbot.unique_id} está disponible para recibir una tarea.")
+                # Verificar qué tipo de shelf le corresponde al RBot
+                shelf_type = ShelfA if rbot.isCarryingA else ShelfB if rbot.isCarryingB else ShelfC
+                print(f"RBot {rbot.unique_id} trabaja con {shelf_type.__name__}.")
 
+                # Buscar una tarea correspondiente a ese tipo de shelf
+                for task in self.shelf_tasks:
+                    shelf_at_pos = self.model.grid.get_cell_list_contents([task[0]])
+                    for agent in shelf_at_pos:
+                        if isinstance(agent, shelf_type):  # Solo asignar tareas del tipo correcto de shelf
+                            print(f"Tarea encontrada para RBot {rbot.unique_id} en {task[0]} (Shelf: {shelf_type.__name__})")
+                            rbot.getTasksR(task)  # Asignar tarea correctamente
+                            rbot.goal = task[0]  # Asignar la posición del estante
+                            rbot.path = rbot.a_star(rbot.pos, rbot.goal)  # Calcular el camino al shelf
+                            print(f"RBot {rbot.unique_id} recibió una tarea hacia el shelf en {rbot.goal}")
+                            self.shelf_tasks.remove(task)  # Eliminar la tarea asignada
+                            break  # Salir del loop si se asigna una tarea
 
     def add_task(self, task):
-        """Agrega una tarea para recoger un paquete, asegurándose de que no esté ya asignada."""
         self.tasks.append(task)
 
     def add_shelf_task(self, task):
         """Agrega una tarea para recoger de un shelf, asegurándose de que no esté ya asignada."""
         if task not in self.shelf_tasks:  # Evitar duplicados
             self.shelf_tasks.append(task)
+            print(f"Tarea agregada: {task}")
 
     def update_tasks(self):
+        """Revisa la grilla y agrega tareas para recoger paquetes."""
         for pos in self.model.grid.coord_iter():
             _, agents = pos
             for agent in agents:
                 if isinstance(agent, (PackageA, PackageB, PackageC)) and pos not in self.assigned_shelves:
                     task = (pos, None)
                     self.add_task(task)
+                    print(f"Tarea asignada para recoger paquete en {pos}")
+
 
     def update_shelf_tasks(self):
         """Revisar todos los estantes (shelves) y agregar tareas si su capacidad es menor a 3."""
@@ -130,14 +153,23 @@ class TaskManager(Agent):
                     self.assigned_shelves[pos] = True  # Marcar el shelf como asignado
                     print(f"Task asignada para shelf en {pos}")
 
-
     def assign_task(self, rbot):
-        """Asigna una tarea de shelf a un RBot."""
-        if self.shelf_tasks:
-            task = self.shelf_tasks.pop(0)  # Tomar la primera tarea disponible
+        """Asigna una tarea de shelf a un RBot basado en el tipo de shelf que maneja."""
+        shelf_type = rbot.shelf_type
+        print(f"RBot {rbot.unique_id} está disponible para recibir una tarea.")
+
+        # Filtrar tareas de shelf según el tipo de shelf que maneja el RBot
+        shelf_tasks_filtered = [task for task in self.shelf_tasks if isinstance(self.model.grid.get_cell_list_contents(task[0])[0], shelf_type)]
+        
+        if shelf_tasks_filtered:
+            task = shelf_tasks_filtered.pop(0)  # Tomar la primera tarea disponible de ese tipo de shelf
             self.assigned_shelves[task[0]] = rbot.unique_id  # Registrar que el shelf está asignado a un RBot
+            print(f"Tarea asignada a RBot {rbot.unique_id} para {shelf_type} en {task[0]}.")
             return task
+        else:
+            print(f"No hay tareas disponibles para {rbot.shelf_type}.")
         return None
+
 
     def complete_task(self, rbot):
         """Marca la tarea como completada y elimina la asignación del shelf."""
@@ -427,7 +459,7 @@ class Bot(Agent):
         self.isCarryingC = False
 
 class RBot(Agent):
-    def __init__(self, unique_id, model, initial_position):
+    def __init__(self, unique_id, model, initial_position, shelf_type):
         super().__init__(unique_id, model)
         self.next_pos = None
         self.path = []
@@ -435,7 +467,7 @@ class RBot(Agent):
         self.carry = False 
         self.goal = None
         self.initial_position = initial_position
-        self.package_type = None
+        self.shelf_type = shelf_type  # El tipo de shelf que este RBot manejará
         self.isCarryingA = False
         self.isCarryingB = False
         self.isCarryingC = False
@@ -443,6 +475,7 @@ class RBot(Agent):
     def step(self):
         """Simula un paso del RBot."""
         try:
+            print(f"RBot {self.unique_id} trabaja con {self.shelf_type}.")
             if not self.carry and not self.goal:
                 # Solicitar tarea del TaskManager
                 task = self.model.central_system.assign_task(self)  # Obtener la tarea del TaskManager
@@ -494,6 +527,7 @@ class RBot(Agent):
 
         except Exception as e:
             print(f"Error: {e} upsi daisy")
+
 
     def getTasksR(self, task):
         self.tasks.append(task)
@@ -636,7 +670,7 @@ class Environment(Model):
         'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
         'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
         'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
-        'WFRFFRFFRFFFFFFFFFFFFFFFFFFFTFFFFTFFFW',
+        'WFRFFRFFRFFFFFFFFFFFFFFFTFFFTFFFFTFFFW',
         'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
     ]
 
@@ -702,10 +736,17 @@ class Environment(Model):
                     self.schedule.add(bot)
                     bot_id += 1
                 elif desc[y][x] == 'T':
-                    rbot = RBot(self.next_id(), self, (x, y))
+                    if bot_id == 4:  # Primer RBot trabaja con ShelfA
+                        rbot = RBot(bot_id, self, (x, y), ShelfA)
+                    elif bot_id == 5:  # Segundo RBot trabaja con ShelfB
+                        rbot = RBot(bot_id, self, (x, y), ShelfB)
+                    else:  # Tercer RBot trabaja con ShelfC
+                        rbot = RBot(bot_id, self, (x, y), ShelfC)
+                    
                     rbot.initial_position = (x, y)
                     self.grid.place_agent(rbot, (x, y))
                     self.schedule.add(rbot)
+                    bot_id += 1
 
         for box_pos in box_position:
             self.central_system.add_task((box_pos, goalPos))
