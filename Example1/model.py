@@ -306,110 +306,112 @@ class Bot(Agent):
             return None
 
     def step(self):
-        self.history["path"].append({"x": self.pos[0], "y": self.pos[1]})
+        try:
+            self.history["path"].append({"x": self.pos[0], "y": self.pos[1]})
 
-        # Verificar si el shelf objetivo está lleno en cada paso
-        if self.goal:
-            shelf_at_goal = self.get_shelf_at_position(self.goal)
-            if shelf_at_goal and shelf_at_goal.is_full:
-                print(f"Shelf at {self.goal} is full. Redirecting robot {self.unique_id}.")
-                self.goal = self.find_shelf(1 if self.isCarryingA else 2 if self.isCarryingB else 3)
-                if self.goal:
-                    self.path = self.a_star(self.pos, self.goal)
+            # Verificar si el shelf objetivo está lleno en cada paso
+            if self.goal:
+                shelf_at_goal = self.get_shelf_at_position(self.goal)
+                if shelf_at_goal and shelf_at_goal.is_full:
+                    #print(f"Shelf at {self.goal} is full. Redirecting robot {self.unique_id}.")
+                    self.goal = self.find_shelf(1 if self.isCarryingA else 2 if self.isCarryingB else 3)
+                    if self.goal:
+                        self.path = self.a_star(self.pos, self.goal)
 
-        if self.path and self.goal:
-            self.next_pos = self.path.pop(0)
-            if self.next_pos is None or self.model.grid.out_of_bounds(self.next_pos):
-                print(f"Warning: next_pos is not valid: {self.next_pos}")
-                return
-
-            if self.detect_collision(self.next_pos):
-                self.path = self.find_alternative_path(self.pos, self.goal)
-                if not self.path:
-                    return  
+            if self.path and self.goal:
                 self.next_pos = self.path.pop(0)
                 if self.next_pos is None or self.model.grid.out_of_bounds(self.next_pos):
-                    print(f"Warning: next_pos after alternative path is not valid: {self.next_pos}")
+                    #print(f"Warning: next_pos is not valid: {self.next_pos}")
                     return
 
-            self.movements += 1
+                if self.detect_collision(self.next_pos):
+                    self.path = self.find_alternative_path(self.pos, self.goal)
+                    if not self.path:
+                        return  
+                    self.next_pos = self.path.pop(0)
+                    if self.next_pos is None or self.model.grid.out_of_bounds(self.next_pos):
+                        #print(f"Warning: next_pos after alternative path is not valid: {self.next_pos}")
+                        return
 
-            if not self.carry:
-                box_in_next_pos = [agent for agent in self.model.grid.get_cell_list_contents([self.next_pos]) if isinstance(agent, (PackageA, PackageB, PackageC))]
-                if box_in_next_pos:
-                    goal = box_in_next_pos[0]
-                    self.model.grid.remove_agent(goal)
-                    self.carry = True
-                    self.update_carrying_flags(goal)
+                self.movements += 1
 
-                    self.history["pickupPoints"].append({"x": self.next_pos[0], "y": self.next_pos[1]})
+                if not self.carry:
+                    box_in_next_pos = [agent for agent in self.model.grid.get_cell_list_contents([self.next_pos]) if isinstance(agent, (PackageA, PackageB, PackageC))]
+                    if box_in_next_pos:
+                        goal = box_in_next_pos[0]
+                        self.model.grid.remove_agent(goal)
+                        self.carry = True
+                        self.update_carrying_flags(goal)
 
-                    if isinstance(goal, PackageA):
-                        package_type = 1
-                    elif isinstance(goal, PackageB):
-                        package_type = 2
-                    elif isinstance(goal, PackageC):
-                        package_type = 3
+                        self.history["pickupPoints"].append({"x": self.next_pos[0], "y": self.next_pos[1]})
 
-                    self.goal = self.find_shelf(package_type)
+                        if isinstance(goal, PackageA):
+                            package_type = 1
+                        elif isinstance(goal, PackageB):
+                            package_type = 2
+                        elif isinstance(goal, PackageC):
+                            package_type = 3
+
+                        self.goal = self.find_shelf(package_type)
+                        self.path = self.a_star(self.pos, self.goal)
+
+            if self.carry:
+                shelf_pos = [(self.pos[0] + dx, self.pos[1] + dy) for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]]
+                shelf_in_adjacent_pos = [pos for pos in shelf_pos if any(isinstance(agent, (ShelfA, ShelfB, ShelfC)) and not agent.is_full for agent in self.model.grid.get_cell_list_contents([pos]))]
+
+                if shelf_in_adjacent_pos:
+                    shelf = next(agent for pos in shelf_in_adjacent_pos for agent in self.model.grid.get_cell_list_contents([pos]) if isinstance(agent, (ShelfA, ShelfB, ShelfC)) and not agent.is_full)
+
+                    if isinstance(shelf, ShelfA) and self.isCarryingA and shelf.has_capacity():
+                        shelf.decrement_capacity()
+                        if not shelf.has_capacity():
+                            shelf.is_full = True
+                        self.isCarryingA = False
+                    elif isinstance(shelf, ShelfB) and self.isCarryingB and shelf.has_capacity():
+                        shelf.decrement_capacity()
+                        if not shelf.has_capacity():
+                            shelf.is_full = True
+                        self.isCarryingB = False
+                    elif isinstance(shelf, ShelfC) and self.isCarryingC and shelf.has_capacity():
+                        shelf.decrement_capacity()
+                        if not shelf.has_capacity():
+                            shelf.is_full = True
+                        self.isCarryingC = False
+                    else:
+                        return
+
+                    self.carry = False
+                    self.history["deliveryPoints"].append({"x": self.pos[0], "y": self.pos[1]})
+                    #   print(f"Robot {self.unique_id} dejó una caja en {self.pos}")
+
+                    self.goal = None
+                    self.path = []
+                    self.reset_carrying_flags()
+
+                    self.model.central_system.step()
+                else:
+                    self.model.grid.move_agent(self, self.next_pos)
+            elif self.goal is None and not self.path:
+                if self.tasks:
+                    self.goal = self.tasks.pop()[0]
                     self.path = self.a_star(self.pos, self.goal)
-
-        if self.carry:
-            shelf_pos = [(self.pos[0] + dx, self.pos[1] + dy) for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]]
-            shelf_in_adjacent_pos = [pos for pos in shelf_pos if any(isinstance(agent, (ShelfA, ShelfB, ShelfC)) and not agent.is_full for agent in self.model.grid.get_cell_list_contents([pos]))]
-
-            if shelf_in_adjacent_pos:
-                shelf = next(agent for pos in shelf_in_adjacent_pos for agent in self.model.grid.get_cell_list_contents([pos]) if isinstance(agent, (ShelfA, ShelfB, ShelfC)) and not agent.is_full)
-
-                if isinstance(shelf, ShelfA) and self.isCarryingA and shelf.has_capacity():
-                    shelf.decrement_capacity()
-                    if not shelf.has_capacity():
-                        shelf.is_full = True
-                    self.isCarryingA = False
-                elif isinstance(shelf, ShelfB) and self.isCarryingB and shelf.has_capacity():
-                    shelf.decrement_capacity()
-                    if not shelf.has_capacity():
-                        shelf.is_full = True
-                    self.isCarryingB = False
-                elif isinstance(shelf, ShelfC) and self.isCarryingC and shelf.has_capacity():
-                    shelf.decrement_capacity()
-                    if not shelf.has_capacity():
-                        shelf.is_full = True
-                    self.isCarryingC = False
+                    if self.path:
+                        self.next_pos = self.path.pop(0)
+                        self.movements += 1
+                        self.model.grid.move_agent(self, self.next_pos)
+                elif self.returning_to_start:
+                    self.goal = self.initial_position
+                    self.path = self.a_star(self.pos, self.goal)
+                    if self.path:
+                        self.next_pos = self.path.pop(0)
+                        self.movements += 1
+                        self.model.grid.move_agent(self, self.next_pos)
                 else:
                     return
-
-                self.carry = False
-                self.history["deliveryPoints"].append({"x": self.pos[0], "y": self.pos[1]})
-                print(f"Robot {self.unique_id} dejó una caja en {self.pos}")
-
-                self.goal = None
-                self.path = []
-                self.reset_carrying_flags()
-
-                self.model.central_system.step()
             else:
                 self.model.grid.move_agent(self, self.next_pos)
-        elif self.goal is None and not self.path:
-            if self.tasks:
-                self.goal = self.tasks.pop()[0]
-                self.path = self.a_star(self.pos, self.goal)
-                if self.path:
-                    self.next_pos = self.path.pop(0)
-                    self.movements += 1
-                    self.model.grid.move_agent(self, self.next_pos)
-            elif self.returning_to_start:
-                self.goal = self.initial_position
-                self.path = self.a_star(self.pos, self.goal)
-                if self.path:
-                    self.next_pos = self.path.pop(0)
-                    self.movements += 1
-                    self.model.grid.move_agent(self, self.next_pos)
-            else:
-                return
-        else:
-            self.model.grid.move_agent(self, self.next_pos)
-
+        except Exception as e:
+            print(f"Error: {e} upsi daisy")
     def get_shelf_at_position(self, pos):
         contents = self.model.grid.get_cell_list_contents([pos])
         for obj in contents:
@@ -446,52 +448,56 @@ class RBot(Agent):
 
     def step(self):
         """Simula un paso del RBot."""
-        if not self.carry:
-            # Si no lleva un paquete, buscar un estante con capacidad menor a 3
-            if not self.goal:
-                shelf_with_packages = self.find_shelf_with_packages()
-                if shelf_with_packages:
-                    self.goal = shelf_with_packages
-                    self.path = self.a_star(self.pos, self.goal)
-            elif self.path:
-                self.next_pos = self.path.pop(0)
-
-                # Evitar colisiones usando find_alternative_path
-                if self.detect_collision(self.next_pos):
-                    print(f"RBot {self.unique_id} detectó una colisión en {self.next_pos}. Buscando ruta alternativa.")
-                    self.path = self.find_alternative_path(self.pos, self.goal)
-                    if not self.path:
-                        return
-                    self.next_pos = self.path.pop(0)
-
-                self.model.grid.move_agent(self, self.next_pos)
-
-                if self.is_adjacent(self.next_pos, self.goal):
-                    shelf = self.get_shelf_at_position(self.goal)
-                    if shelf:
-                        self.pickup_from_shelf(shelf)
-                        self.goal = self.find_s_package()
+        try:
+            if not self.carry:
+                # Si no lleva un paquete, buscar un estante con capacidad menor a 3
+                if not self.goal:
+                    shelf_with_packages = self.find_shelf_with_packages()
+                    if shelf_with_packages:
+                        self.goal = shelf_with_packages
                         self.path = self.a_star(self.pos, self.goal)
-        else:
-            # Si lleva un paquete, ir a dejarlo en un SPackage
-            if self.path:
-                self.next_pos = self.path.pop(0)
-
-                # Evitar colisiones usando find_alternative_path
-                if self.detect_collision(self.next_pos):
-                    print(f"RBot {self.unique_id} detectó una colisión en {self.next_pos}. Buscando ruta alternativa.")
-                    self.path = self.find_alternative_path(self.pos, self.goal)
-                    if not self.path:
-                        return
+                elif self.path:
                     self.next_pos = self.path.pop(0)
 
-                self.model.grid.move_agent(self, self.next_pos)
+                    # Evitar colisiones usando find_alternative_path
+                    if self.detect_collision(self.next_pos):
+                        print(f"RBot {self.unique_id} detectó una colisión en {self.next_pos}. Buscando ruta alternativa.")
+                        self.path = self.find_alternative_path(self.pos, self.goal)
+                        if not self.path:
+                            return
+                        self.next_pos = self.path.pop(0)
 
-                if self.is_adjacent(self.next_pos, self.goal):
-                    self.drop_off_package()
-                    self.goal = None
-                    self.path = []
-                    self.model.central_system.release_shelf(self.goal)
+                    self.model.grid.move_agent(self, self.next_pos)
+
+                    if self.is_adjacent(self.next_pos, self.goal):
+                        shelf = self.get_shelf_at_position(self.goal)
+                        if shelf:
+                            self.pickup_from_shelf(shelf)
+                            self.goal = self.find_s_package()
+                            self.path = self.a_star(self.pos, self.goal)
+            else:
+                # Si lleva un paquete, ir a dejarlo en un SPackage
+                if self.path:
+                    self.next_pos = self.path.pop(0)
+
+                    # Evitar colisiones usando find_alternative_path
+                    if self.detect_collision(self.next_pos):
+                        print(f"RBot {self.unique_id} detectó una colisión en {self.next_pos}. Buscando ruta alternativa.")
+                        self.path = self.find_alternative_path(self.pos, self.goal)
+                        if not self.path:
+                            return
+                        self.next_pos = self.path.pop(0)
+
+                    self.model.grid.move_agent(self, self.next_pos)
+
+                    if self.is_adjacent(self.next_pos, self.goal):
+                        self.drop_off_package()
+                        self.goal = None
+                        self.path = []
+                        self.model.central_system.release_shelf(self.goal)
+        except Exception as e:
+            print(f"Error: {e} upsi daisy")
+
                     
     def getTasksR(self, task):
         """Asignar tareas al RBot."""
@@ -646,7 +652,7 @@ class Environment(Model):
         'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
         'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
         'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
-        'WFRFFRFFRFFFFFFFFFFFFFFFFFFFTFFFFTFFFW',
+        'WFRFFRFFRFFFFFFFFFFFFFFFFFFFFFFFFTFFFW',
         'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
     ]
 
@@ -723,7 +729,6 @@ class Environment(Model):
     def step(self):
         self.datacollector.collect(self)
         self.schedule.step()
-
         robots_data = {"robots": []}
         for agent in self.schedule.agents:
             if isinstance(agent, Bot):
