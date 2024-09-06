@@ -52,7 +52,7 @@ def agent_portrayal(agent):
                 "Color": "lime", "text": "🚛"}
     elif isinstance(agent, RBot):
         return {"Shape": "circle", "Filled": "false", "Color": "saddlebrown", "Layer": 1, "r": 0.9,
-                "text": "", "text_color": "black"}
+                "text": f"{agent.unique_id}", "text_color": "white"}
     else:
         return {"Shape": "rect", "Filled": "true", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
                 "Color": "white", "text": ""}
