@@ -164,17 +164,22 @@ class TaskManager(Agent):
                     self.assigned_shelves[pos] = True
 
     def assign_task(self, rbot):
-        """Asigna una tarea de shelf a un RBot basado en el tipo de shelf que maneja."""
         shelf_type = rbot.shelf_type
 
-        # Filtrar tareas de shelf según el tipo de shelf que maneja el RBot
-        shelf_tasks_filtered = [task for task in self.shelf_tasks if isinstance(self.model.grid.get_cell_list_contents(task[0])[0], shelf_type)]
+        # Filtrar tareas de shelf según el tipo de shelf que maneja el RBot y que tengan capacidad disponible
+        shelf_tasks_filtered = [
+            task for task in self.shelf_tasks 
+            if isinstance(self.model.grid.get_cell_list_contents(task[0])[0], shelf_type)
+            and self.model.grid.get_cell_list_contents(task[0])[0].capacity < 3  # Verificar capacidad
+        ]
 
         if shelf_tasks_filtered:
             task = shelf_tasks_filtered.pop(0)  # Tomar la primera tarea disponible de ese tipo de shelf
             self.assigned_shelves[task[0]] = rbot.unique_id  # Registrar que el shelf está asignado a un RBot
             print(f"Tarea asignada a RBot {rbot.unique_id} para {shelf_type.__name__} en {task[0]}.")
             return task
+        else:
+            print(f"No hay tareas disponibles para {rbot.unique_id} en {shelf_type.__name__}")
         return None
 
 
@@ -221,7 +226,7 @@ class EPackage(Agent):
         super().__init__(unique_id, model)
         self.spawn_directions = [(0, 1), (1, 0), (0, -1), (-1, 0)]  # Right, Down, Left, Up
         self.current_direction = 0  # Start facing right
-        self.timer = random.randint(50, 100)  # Temporizador para controlar el spawn de paquetes
+        self.timer = random.randint(30, 100)  # Temporizador para controlar el spawn de paquetes
 
     def step(self):
         direction = self.spawn_directions[self.current_direction]
@@ -491,6 +496,7 @@ class RBot(Agent):
         self.isCarryingA = False
         self.isCarryingB = False
         self.isCarryingC = False
+        self.returning_to_start = False
         self.movements = 0
         self.PackagesInSPackage = 0
         self.assigned_spackage = None
@@ -505,17 +511,15 @@ class RBot(Agent):
     def step(self):
         """Simula un paso del RBot."""
         try:
+            # Registrar la posición actual en el historial
             self.history["path"].append({"x": self.pos[0], "y": self.pos[1]})
+
             # Si no lleva un paquete y no tiene un objetivo, asignar una tarea
             if not self.carry and not self.goal:
+
                 task = self.model.central_system.assign_task(self)  # Obtener la tarea del TaskManager
                 if task:
                     self.goal = task[0]
-                    self.path = self.a_star(self.pos, self.goal)
-                else:
-                    # Si no hay tarea, regresar a la posición inicial
-                    self.returning_to_start = True
-                    self.goal = self.initial_position
                     self.path = self.a_star(self.pos, self.goal)
 
             # Si el RBot tiene una tarea y no lleva un paquete, ejecuta la tarea
@@ -523,15 +527,15 @@ class RBot(Agent):
                 if self.path:
                     self.next_pos = self.path.pop(0)
 
-                    # Detectar colisión
+                    # Detectar colisión antes de moverse
                     if self.detect_collision(self.next_pos):
                         print(f"RBot {self.unique_id} detectó una colisión en {self.next_pos}. Buscando ruta alternativa.")
                         self.path = self.find_alternative_path(self.pos, self.goal)
                         if not self.path:
-                            return
+                            return  # Si no se puede encontrar una ruta alternativa, detener el movimiento
                         self.next_pos = self.path.pop(0)
 
-                    # Mover el RBot
+                    # Mover el RBot si no hay colisión
                     self.model.grid.move_agent(self, self.next_pos)
 
                     # Si está adyacente al shelf, recoger el paquete
@@ -543,22 +547,21 @@ class RBot(Agent):
                             self.goal = self.find_available_spackage()  # Asignar un SPackage disponible
                             if self.goal:  # Si encuentra un SPackage, asignar el camino
                                 self.path = self.a_star(self.pos, self.goal)
-                                # Agregar punto de recolección
 
             else:
                 # Si lleva un paquete, ir a dejarlo en el SPackage
                 if self.path:
                     self.next_pos = self.path.pop(0)
 
-                    # Detectar colisión
+                    # Detectar colisión antes de moverse
                     if self.detect_collision(self.next_pos):
                         print(f"RBot {self.unique_id} detectó una colisión en {self.next_pos}. Buscando ruta alternativa.")
                         self.path = self.find_alternative_path(self.pos, self.goal)
                         if not self.path:
-                            return
+                            return  # Si no se puede encontrar una ruta alternativa, detener el movimiento
                         self.next_pos = self.path.pop(0)
 
-                    # Mover el RBot
+                    # Mover el RBot si no hay colisión
                     self.model.grid.move_agent(self, self.next_pos)
                     self.movements += 1
 
@@ -566,14 +569,13 @@ class RBot(Agent):
                     if self.is_adjacent(self.next_pos, self.goal):
                         self.drop_off_package()
                         self.PackagesInSPackage += 1
-                        # Agregar punto de entrega
-                        self.model.central_system.release_spackage(self.goal)
+                        self.history["deliveryPoints"].append({"x": self.next_pos[0], "y": self.next_pos[1]})
                         self.goal = None
                         self.path = []
                         self.model.central_system.complete_task(self)
-        except Exception as e:
-            print(f"Error: {e} upsi daisy")
 
+        except Exception as e:
+            print(f"Error: {e} - Se produjo un error en el movimiento del RBot")
 
     def getTasksR(self, task):
         self.tasks.append(task)
