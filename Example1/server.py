@@ -37,7 +37,7 @@ def agent_portrayal(agent):
                 "Color": "peachpuff", "text": "🧯"}
     elif isinstance(agent, PackageA):
         return {"Shape": "rect", "Filled": "true", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
-                "Color": "burlywood", "text": "📦"}
+                "Color": "blanchedalmond", "text": "📦"}
     elif isinstance(agent, PackageB):
         return {"Shape": "rect", "Filled": "true", "Layer": 0, "w": 0.9, "h": 0.9, "text_color": "Black",
                 "Color": "wheat", "text": "📦"}
