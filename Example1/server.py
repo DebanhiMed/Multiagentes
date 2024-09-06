@@ -89,4 +89,5 @@ model = server.model
 while model.running:
     model.step()
 
-
+# Guardar los datos al finalizar la simulación
+model.save_data_to_json("resultados_simulacion.json")
