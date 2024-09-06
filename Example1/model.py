@@ -19,14 +19,14 @@ class ShelfA(Agent):
         if self.capacity > 0:
             self.capacity -= 1
             if self.capacity == 0:
-                self.is_full = True  # Mark the shelf as full when capacity is 0
+                self.is_full = True  
             self.model.central_system.add_shelf_task((self.pos, None))
 
     def increment_capacity(self):
         if self.capacity < 3:
             self.capacity += 1
             if self.is_full and self.capacity > 0:
-                self.is_full = False  # Shelf is no longer full
+                self.is_full = False  
 
 class ShelfB(Agent):
     def __init__(self, unique_id, model, capacity=3):
@@ -41,15 +41,14 @@ class ShelfB(Agent):
         if self.capacity > 0:
             self.capacity -= 1
             if self.capacity == 0:
-                self.is_full = True  # Marcar como lleno cuando la capacidad sea 0
-            # Añadir una tarea para que un RBot venga a recoger del estante
+                self.is_full = True
             self.model.central_system.add_shelf_task((self.pos, None))
 
     def increment_capacity(self):
         if self.capacity < 3:
             self.capacity += 1
             if self.is_full and self.capacity > 0:
-                self.is_full = False  # El estante ya no está lleno
+                self.is_full = False 
 
 class ShelfC(Agent):
     def __init__(self, unique_id, model, capacity=3):
@@ -64,15 +63,14 @@ class ShelfC(Agent):
             if self.capacity > 0:
                 self.capacity -= 1
                 if self.capacity == 0:
-                    self.is_full = True  # Marcar como lleno cuando la capacidad sea 0
-                # Añadir una tarea para que un RBot venga a recoger del estante
+                    self.is_full = True  
                 self.model.central_system.add_shelf_task((self.pos, None))
 
     def increment_capacity(self):
             if self.capacity < 3:
                 self.capacity += 1
                 if self.is_full and self.capacity > 0:
-                    self.is_full = False  # El estante ya no está lleno
+                    self.is_full = False
 
 class Plant(Agent):
     def __init__(self, unique_id, model):
@@ -105,9 +103,9 @@ class TaskManager(Agent):
         self.step_counter = 0
         self.current_order = None
         self.custom_order = {
-            "PackageA": random.randint(1, 3),  # Pedidos de cada paquete
-            "PackageB": random.randint(1, 3),
-            "PackageC": random.randint(1, 3),
+            "PackageA": random.randint(5, 10),
+            "PackageB": random.randint(5, 10),
+            "PackageC": random.randint(5, 10),
             "fulfilled": {
                 "PackageA": 0,
                 "PackageB": 0,
@@ -123,17 +121,15 @@ class TaskManager(Agent):
         if self.step_counter == 1 or self.step_counter % 500 == 0:
             self.create_new_order()
 
-        # Asignar tareas a los Bot regulares
         for bot in self.model.schedule.agents:
             if isinstance(bot, Bot) and not bot.tasks and not bot.carry and not bot.returning_to_start:
                 if self.tasks:
                     task = self.tasks.pop(0)
-                    if isinstance(task, tuple):  # Asegurarse de que task es una tupla
+                    if isinstance(task, tuple):
                         bot.getTasks(task)
-                        bot.goal = task[0]  # Asignar la posición objetivo
+                        bot.goal = task[0]
                         bot.path = bot.a_star(bot.pos, bot.goal)
 
-        # Asignar tareas a los RBot para que recojan paquetes de estantes
         for rbot in self.model.schedule.agents:
             if isinstance(rbot, RBot) and not rbot.carry and not rbot.goal and self.current_order:
                 task = self.get_next_task_for_order()
@@ -161,11 +157,9 @@ class TaskManager(Agent):
 
     
     def get_next_task_for_order(self):
-        # Find which type of package is needed
         for package_type, count in self.current_order.items():
             if count > self.current_order["fulfilled"][package_type]:
                 shelf_type = ShelfA if package_type == "PackageA" else ShelfB if package_type == "PackageB" else ShelfC
-                # Find a shelf with this package type
                 for pos in self.model.grid.coord_iter():
                     _, (x, y) = pos
                     shelf_at_pos = self.model.grid.get_cell_list_contents([x, y])
@@ -179,7 +173,6 @@ class TaskManager(Agent):
         if package_type in self.custom_order["fulfilled"]:
             self.custom_order["fulfilled"][package_type] += 1
 
-        # Verificar si el pedido está completo
         complete = all(
             self.custom_order["fulfilled"][pkg] >= self.custom_order[pkg]
             for pkg in ["PackageA", "PackageB", "PackageC"]
@@ -187,7 +180,6 @@ class TaskManager(Agent):
 
         if complete:
             print("El pedido se ha completado.")
-            # Aquí podrías crear un nuevo pedido si es necesario
             self.create_new_order()
 
     def is_order_fulfilled(self, shelf_type):
@@ -199,12 +191,12 @@ class TaskManager(Agent):
         elif shelf_type == ShelfC:
             package_type = "PackageC"
         else:
-            return False  # Si el tipo de estante no coincide, no está cumplido
+            return False
 
         return self.custom_order["fulfilled"][package_type] >= self.custom_order[package_type]
     def add_shelf_task(self, task):
         """Agrega una tarea para recoger de un shelf, asegurándose de que no esté ya asignada."""
-        if task not in self.shelf_tasks:  # Evitar duplicados
+        if task not in self.shelf_tasks:
             self.shelf_tasks.append(task)
 
     def update_tasks(self):
@@ -232,21 +224,19 @@ class TaskManager(Agent):
             print(f"RBot {rbot.unique_id} ya completó su parte del pedido.")
             return None
 
-        # Filtrar tareas de shelf según el tipo de shelf que maneja el RBot y que tengan capacidad disponible
         shelf_tasks_filtered = [
             task for task in self.shelf_tasks 
             if isinstance(self.model.grid.get_cell_list_contents(task[0])[0], shelf_type)
-            and self.model.grid.get_cell_list_contents(task[0])[0].capacity < 3  # Verificar capacidad
+            and self.model.grid.get_cell_list_contents(task[0])[0].capacity < 3
         ]
 
         if shelf_tasks_filtered:
-            task = shelf_tasks_filtered.pop(0)  # Tomar la primera tarea disponible de ese tipo de shelf
-            self.assigned_shelves[task[0]] = rbot.unique_id  # Registrar que el shelf está asignado a un RBot
+            task = shelf_tasks_filtered.pop(0)
+            self.assigned_shelves[task[0]] = rbot.unique_id
             return task
 
     def complete_task(self, rbot):
         """Marca la tarea como completada y elimina la asignación del shelf."""
-        # Eliminar el shelf de la lista de asignados
         for shelf_pos, bot_id in list(self.assigned_shelves.items()):
             if bot_id == rbot.unique_id:
                 del self.assigned_shelves[shelf_pos]
@@ -284,9 +274,9 @@ class SPackage(Agent):
 class EPackage(Agent):
     def __init__(self, unique_id, model):
         super().__init__(unique_id, model)
-        self.spawn_directions = [(0, 1), (1, 0), (0, -1), (-1, 0)]  # Right, Down, Left, Up
-        self.current_direction = 0  # Start facing right
-        self.timer = random.randint(30, 100)  # Temporizador para controlar el spawn de paquetes
+        self.spawn_directions = [(0, 1), (1, 0), (0, -1), (-1, 0)]
+        self.current_direction = 0
+        self.timer = random.randint(30, 100)
 
     def step(self):
         direction = self.spawn_directions[self.current_direction]
@@ -314,7 +304,7 @@ class Bot(Agent):
         self.next_pos = None
         self.movements = 0
         self.battery = 100  
-        self.path = []  # Para almacenar la trayectoria
+        self.path = []
         self.carry = False
         self.tasks = []
         self.goal = None
@@ -418,7 +408,6 @@ class Bot(Agent):
 
     def step(self):
         self.history["path"].append({"x": self.pos[0], "y": self.pos[1]})
-        # Verificar si el shelf objetivo está lleno en cada paso
         if self.goal:
             shelf_at_goal = self.get_shelf_at_position(self.goal)
             if shelf_at_goal and shelf_at_goal.is_full:
@@ -493,7 +482,7 @@ class Bot(Agent):
                 self.goal = None
                 self.path = []
                 self.reset_carrying_flags()
-                self.history["deliveryPoints"].append({"x": self.next_pos[0] + 1, "y": self.next_pos[1]})
+                self.history["deliveryPoints"].append({"x": self.next_pos[0], "y": self.next_pos[1] - 1})
 
                 self.model.central_system.step()
             else:
@@ -542,7 +531,7 @@ class RBot(Agent):
     def __init__(self, unique_id, model, initial_position, shelf_type):
         super().__init__(unique_id, model)
         self.next_pos = None
-        self.path = []  # Para almacenar la trayectoria
+        self.path = []
         self.tasks = []
         self.carry = False
         self.goal = None
@@ -564,10 +553,8 @@ class RBot(Agent):
 
     def step(self):
         """Simula un paso del RBot."""
-        # Registrar la posición actual en el historial
         self.history["path"].append({"x": self.pos[0], "y": self.pos[1]})
 
-        # Si el RBot ha completado su parte del pedido, regresa a su posición inicial y espera
         if self.completed_order:
             if not self.goal:
                 self.goal = self.initial_position
@@ -577,7 +564,6 @@ class RBot(Agent):
                 self.model.grid.move_agent(self, self.next_pos)
             return
 
-        # Si no lleva un paquete y no tiene un objetivo, asignar una tarea
         if not self.carry and not self.goal:
             task = self.model.central_system.assign_task(self)
             if task:
@@ -586,23 +572,19 @@ class RBot(Agent):
             else:
                 self.goal = None
 
-        # Si el RBot tiene una tarea y no lleva un paquete, ejecuta la tarea
         if not self.carry:
             if self.path and len(self.path) > 0:
                 self.next_pos = self.path.pop(0)
 
-                # Verifica si hay colisión antes de moverse
                 if self.detect_collision(self.next_pos):
                     self.path = self.find_alternative_path(self.pos, self.goal)
                     if not self.path:
                         return
                     self.next_pos = self.path.pop(0)
 
-                # Mover el RBot si no hay colisión
                 if self.next_pos:
                     self.model.grid.move_agent(self, self.next_pos)
 
-                # Si está adyacente al shelf, recoger el paquete
                 if self.is_adjacent(self.next_pos, self.goal):
                     shelf = self.get_shelf_at_position(self.goal)
                     if shelf:
@@ -612,23 +594,19 @@ class RBot(Agent):
                             self.path = self.a_star(self.pos, self.goal)
 
         else:
-            # Si lleva un paquete, ir a dejarlo en el SPackage
             if self.path and len(self.path) > 0:
                 self.next_pos = self.path.pop(0)
 
-                # Verifica si hay colisión antes de moverse
                 if self.detect_collision(self.next_pos):
                     self.path = self.find_alternative_path(self.pos, self.goal)
                     if not self.path:
                         return
                     self.next_pos = self.path.pop(0)
 
-                # Mover el RBot si no hay colisión
                 if self.next_pos:
                     self.model.grid.move_agent(self, self.next_pos)
                     self.movements += 1
 
-                # Si está adyacente al SPackage, dejar el paquete
                 if self.is_adjacent(self.next_pos, self.goal):
                     self.drop_off_package()
                     self.model.central_system.fulfill_order(self.get_package_type())
@@ -636,7 +614,6 @@ class RBot(Agent):
                     self.goal = None
                     self.path = []
                     
-                    # Verificar si ha cumplido con su parte del pedido
                     if self.has_fulfilled_order():
                         print(f"RBot {self.unique_id} ha completado su parte del pedido.")
                         self.completed_order = True
@@ -687,7 +664,7 @@ class RBot(Agent):
         self.history["deliveryPoints"].append({"x": self.next_pos[0] + 1, "y": self.next_pos[1]})
         
         self.model.central_system.fulfill_order(package_type)
-        self.model.central_system.release_spackage(self.goal)  # Liberar el SPackage
+        self.model.central_system.release_spackage(self.goal)
 
         self.isCarryingA = False
         self.isCarryingB = False
@@ -716,7 +693,7 @@ class RBot(Agent):
             if contents:
                 for obj in contents:
                     if isinstance(obj, SPackage) and not self.model.central_system.is_spackage_occupied((x, y)):
-                        self.model.central_system.occupy_spackage((x, y))  # Marcar SPackage como ocupado
+                        self.model.central_system.occupy_spackage((x, y))
                         return (x, y)
         return None
 
@@ -799,7 +776,6 @@ class Environment(Model):
         self.central_system = TaskManager(0, self)
         self.schedule.add(self.central_system)
 
-        # Almacenar los estantes llenos
         self.full_shelves = set()
 
         bot_id = 1
@@ -912,11 +888,11 @@ class Environment(Model):
                     self.schedule.add(bot)
                     bot_id += 1
                 elif desc[y][x] == 'T':
-                    if bot_id == 4:  # Primer RBot trabaja con ShelfA
+                    if bot_id == 4:
                         rbot = RBot(bot_id, self, (x, y), ShelfA)
-                    elif bot_id == 5:  # Segundo RBot trabaja con ShelfB
+                    elif bot_id == 5:
                         rbot = RBot(bot_id, self, (x, y), ShelfB)
-                    else:  # Tercer RBot trabaja con ShelfC
+                    else:
                         rbot = RBot(bot_id, self, (x, y), ShelfC)
                     
                     rbot.initial_position = (x, y)
@@ -947,7 +923,6 @@ class Environment(Model):
         self.datacollector.collect(self)
         self.schedule.step()
 
-        # Save the current state of all bots to JSON
         robots_data = {"robots": []}
         for agent in self.schedule.agents:
             if isinstance(agent, Bot) or isinstance(agent, RBot):
